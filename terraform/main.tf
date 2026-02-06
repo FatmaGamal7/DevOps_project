@@ -113,6 +113,19 @@ module "cognito" {
 #################################
 # API Gateway + VPC Link
 #################################
+# module "api_gateway" {
+#   source = "./modules/APIGW"
+
+#   env                 = var.env
+#   region              = var.region
+
+#   vpc_id              = module.vpc.vpc_id
+#   private_subnets     = module.private_subnets[*].private_subnet_id
+
+#   user_pool_id        = module.cognito.user_pool_id
+#   user_pool_client_id = module.cognito.user_pool_client_id
+# }
+
 module "api_gateway" {
   source = "./modules/APIGW"
 
@@ -124,7 +137,12 @@ module "api_gateway" {
 
   user_pool_id        = module.cognito.user_pool_id
   user_pool_client_id = module.cognito.user_pool_client_id
+
+  nlb_arn             = module.nlb.nlb_arn
+  nlb_listener_id     = module.nlb.listener_id
+  vpc_link_id         = module.api_gateway_vpc_link.vpc_link_id
 }
+
 
 
 # Network Load Balancer

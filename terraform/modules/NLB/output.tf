@@ -5,3 +5,7 @@ output "nlb_arn" {
 output "nlb_dns_name" {
   value = aws_lb.nlb.dns_name
 }
+
+output "listener_id" {
+  value = aws_lb_listener.nlb_listener.id
+}

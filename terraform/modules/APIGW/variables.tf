@@ -21,3 +21,27 @@ variable "private_subnets" {
 variable "vpc_id" {
   type = string
 }
+
+variable "nlb_arn" {
+  type        = string
+  description = "ARN of the Network Load Balancer"
+}
+
+variable "nlb_listener_id" {
+  type        = string
+  description = "Listener ID of the Network Load Balancer"
+}
+
+variable "vpc_link_id" {
+  type        = string
+  description = "ID of the VPC Link to connect API Gateway to NLB"
+}
+
+variable "account_id" {
+  type        = string
+  description = "AWS Account ID (can use data.aws_caller_identity.current.account_id)"
+  default     = ""  # optional if we use data.aws_caller_identity
+}
+
+data "aws_caller_identity" "current" {}
+

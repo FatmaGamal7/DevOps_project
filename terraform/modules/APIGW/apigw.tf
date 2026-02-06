@@ -47,3 +47,13 @@ resource "aws_apigatewayv2_stage" "default" {
   name        = "$default"
   auto_deploy = true
 }
+
+resource "aws_apigatewayv2_integration" "nlb" {
+  api_id            = aws_apigatewayv2_api.this.id
+  integration_type  = "HTTP_PROXY" 
+  integration_uri   = "arn:aws:elasticloadbalancing:${var.region}:${data.aws_caller_identity.current.account_id}:listener/net/${var.nlb_arn}/${var.nlb_listener_id}" 
+  connection_type   = "VPC_LINK"
+  connection_id     = var.vpc_link_id
+  integration_method = "ANY"
+}
+
