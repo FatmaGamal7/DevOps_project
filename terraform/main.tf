@@ -1,37 +1,28 @@
 # VPC
 module "vpc" {
   source     = "./modules/vpc"
-  cidr_block = var.vpc_cidr
+  cidr_block = var.vpc_cidr_prod
 }
 
 # public Subnets
 module "public_subnets" {
   source = "./modules/public_subnet"
-  # count  = length(local.public_cidrs)
+  count  = length(local.public_cidrs)
 
   vpc_id            = module.vpc.vpc_id
-  cidr_block        = var.public_cidr # local.public_cidrs[count.index]
-  availability_zone = var.availability_zone # local.availability_zones[count.index]
+  cidr_block        = local.public_cidrs[count.index]
+  availability_zone = local.availability_zones[count.index]
 }
+
 
 # Private Subnets (2 AZs)
 module "private_subnets" {
   source = "./modules/private_subnet"
-  #count  = length(local.private_cidrs)
+  count  = length(local.private_cidrs)
 
   vpc_id            = module.vpc.vpc_id
-  cidr_block        = var.private_cidr #local.private_cidrs[count.index]
-  availability_zone = var.availability_zone #local.availability_zones[count.index]
-}
-
-# data Subnets
-module "data_subnets" {
-  source = "./modules/private_subnet"
-  # count  = length(local.private_cidrs)
-
-  vpc_id            = module.vpc.vpc_id
-  cidr_block        = var.data_cidr #local.private_cidrs[count.index]
-  availability_zone = var.availability_zone  #local.availability_zones[count.index]
+  cidr_block        = local.private_cidrs[count.index]
+  availability_zone = local.availability_zones[count.index]
 }
 
 # Internet Gateway
@@ -43,7 +34,7 @@ module "igw" {
 # NAT Gateway
 module "nat" {
   source           = "./modules/NAT"
-  public_subnet_id = module.public_subnets.public_subnet_id
+  public_subnet_id = module.public_subnets[0].public_subnet_id
   igw_id           = module.igw.IGW_id
   env              = var.env
 }
@@ -51,10 +42,10 @@ module "nat" {
 # Public Route Tables
 module "public_rts" {
   source    = "./modules/public_routetable"
-  # count  = length(module.public_subnets)
+  count  = length(module.public_subnets)
 
   vpc_id    = module.vpc.vpc_id
-  subnet_id = module.public_subnets.public_subnet_id
+  subnet_id = module.public_subnets[count.index].public_subnet_id
   igw_id    = module.igw.IGW_id
 }
 
@@ -62,12 +53,14 @@ module "public_rts" {
 # Private Route Tables (Shared NAT)
 module "private_rts" {
   source    = "./modules/private_routetable"
-  # /count  = length(module.private_subnets)
+  count  = length(module.private_subnets)
   vpc_id    = module.vpc.vpc_id
-  subnet_id = module.private_subnets.private_subnet_id
+  subnet_id = module.private_subnets[count.index].private_subnet_id
   nat_id    = module.nat.nat_id
 }
 
+
+# IAM and EKS
 #_______________________
 
 
@@ -93,4 +86,58 @@ module "private_rts" {
 
 #   iam_module = module.IAM
 # }
+
+
+#_________________________________________
+
+#################################
+# ECR
+#################################
+module "ecr" {
+  source = "./modules/ECR"
+  
+
+  env = var.env
+}
+
+#################################
+# Cognito
+#################################
+module "cognito" {
+  source = "./modules/cognito"
+
+  env    = var.env
+  region = var.region
+}
+
+#################################
+# API Gateway + VPC Link
+#################################
+module "api_gateway" {
+  source = "./modules/APIGW"
+
+  env                 = var.env
+  region              = var.region
+
+  vpc_id              = module.vpc.vpc_id
+  private_subnets     = module.private_subnets[*].private_subnet_id
+
+  user_pool_id        = module.cognito.user_pool_id
+  user_pool_client_id = module.cognito.user_pool_client_id
+}
+
+
+# Network Load Balancer
+#################################
+module "nlb" {
+  source      = "./modules/NLB"
+  name        = "my-nlb"
+  env         = var.env
+  subnet_ids  = module.public_subnets[*].public_subnet_id
+  scheme      = "internet-facing"
+  listener_port = 80
+  vpc_id      = module.vpc.vpc_id
+}
+
+
 

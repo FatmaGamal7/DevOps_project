@@ -47,3 +47,10 @@ output "nat_eip" {
 #   description = "IAM role ARN for EKS managed node group"
 #   value       = module.IAM.node_role_arn
 # }
+
+
+############
+
+output "nlb_dns_name" {
+  value = module.nlb.nlb_dns_name
+}
