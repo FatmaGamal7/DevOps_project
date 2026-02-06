@@ -43,5 +43,15 @@ variable "account_id" {
   default     = ""  # optional if we use data.aws_caller_identity
 }
 
+variable "nlb_listener_arn" {
+  type        = string
+  description = "ARN of the NLB listener to integrate with API Gateway"
+}
+
+########
 data "aws_caller_identity" "current" {}
+
+
+
+
 

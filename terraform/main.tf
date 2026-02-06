@@ -131,7 +131,6 @@ module "api_gateway" {
 
   env                 = var.env
   region              = var.region
-
   vpc_id              = module.vpc.vpc_id
   private_subnets     = module.private_subnets[*].private_subnet_id
 
@@ -139,9 +138,13 @@ module "api_gateway" {
   user_pool_client_id = module.cognito.user_pool_client_id
 
   nlb_arn             = module.nlb.nlb_arn
+  nlb_listener_arn    = module.nlb.listener_arn
   nlb_listener_id     = module.nlb.listener_id
-  vpc_link_id         = module.api_gateway_vpc_link.vpc_link_id
+  vpc_link_id         = module.api_gateway.vpc_link_id
 }
+
+
+
 
 
 
