@@ -28,7 +28,6 @@ env:
   TERRAFORM_DIR: ./terraform
   HELM_CHART_DIR: ./helm
   APP_DIR: ./hello_app
-  K8S_DIR: ./k8s
 
 jobs:
   # ===============================
@@ -37,10 +36,6 @@ jobs:
   infra:
     name: Provision Infrastructure
     runs-on: ubuntu-latest
-    outputs:
-      ECR_REPO: ${{ steps.set-ecr.outputs.ECR_REPO }}
-      EKS_CLUSTER: ${{ steps.set-eks.outputs.EKS_CLUSTER }}
-      API_URL: ${{ steps.set-api.outputs.API_URL }}
 
     steps:
     - name: Checkout code
@@ -68,28 +63,16 @@ jobs:
       run: terraform apply -auto-approve
 
     - name: Set ECR repo URL
-      id: set-ecr
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
         ECR_REPO=$(terraform output -raw repository_url | tr -d '\n')
         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
-        echo "::set-output name=ECR_REPO::$ECR_REPO"
 
     - name: Set EKS Cluster name
-      id: set-eks
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
         EKS_CLUSTER=$(terraform output -raw cluster_name | tr -d '\n')
         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
-        echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
-
-    - name: Set API URL
-      id: set-api
-      working-directory: ${{ env.TERRAFORM_DIR }}
-      run: |
-        API_URL=$(terraform output -raw my_app_url | tr -d '\n')
-        echo "API_URL=$API_URL" >> $GITHUB_ENV
-        echo "::set-output name=API_URL::$API_URL"
 
   # ==================================
   # Stage 2️⃣: Platform Tools (Helm)
@@ -98,6 +81,7 @@ jobs:
     name: Install Platform Tools
     needs: infra
     runs-on: ubuntu-latest
+
     env:
       AWS_REGION: ${{ env.AWS_REGION }}
       EKS_CLUSTER: ${{ needs.infra.outputs.EKS_CLUSTER }}
@@ -167,13 +151,11 @@ jobs:
     name: Build & Deploy Application
     needs: [infra, platform-tools]
     runs-on: ubuntu-latest
+
     env:
       AWS_REGION: ${{ env.AWS_REGION }}
       EKS_CLUSTER: ${{ needs.infra.outputs.EKS_CLUSTER }}
       ECR_REPO: ${{ needs.infra.outputs.ECR_REPO }}
-      API_URL: ${{ needs.infra.outputs.API_URL }}
-      APP_DIR: ./hello_app
-      K8S_DIR: ./k8s
 
     steps:
     - name: Checkout repo
@@ -224,15 +206,12 @@ jobs:
       run: |
         helm upgrade --install my-app ${{ env.HELM_CHART_DIR }} \
           --set image.repository=$ECR_REPO \
-          --set image.tag=latest \
-          --set app.apiUrl=$API_URL
+          --set image.tag=latest
 
     - name: Verify Deployment
       run: |
         kubectl get pods
         kubectl get svc
-
-
 
 
 
