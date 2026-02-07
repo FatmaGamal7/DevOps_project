@@ -81,7 +81,7 @@ resource "aws_apigatewayv2_stage" "default" {
 ###########################
 resource "aws_apigatewayv2_route" "default" {
   api_id    = aws_apigatewayv2_api.this.id
-  route_key = "$default"
+  route_key = "ANY /api/{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.nlb.id}"
 }
 

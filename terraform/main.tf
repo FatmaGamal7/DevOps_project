@@ -59,31 +59,31 @@ module "private_rts" {
   nat_id    = module.nat.nat_id
 }
 
-###############################
-# IAM and EKS
-module "IAM" {
-  source           = "./modules/IAM"
-  env              = var.env
-  eks_cluster_name = "my-eks-cluster"
-}
+# ###############################
+# # IAM and EKS
+# module "IAM" {
+#   source           = "./modules/IAM"
+#   env              = var.env
+#   eks_cluster_name = "my-eks-cluster"
+# }
 
-module "EKS" {
-  source       = "./modules/EKS"
-  cluster_name = "my-eks-cluster"
-  env          = var.env
+# module "EKS" {
+#   source       = "./modules/EKS"
+#   cluster_name = "my-eks-cluster"
+#   env          = var.env
 
-  # Collect all public and private subnet IDs into one list for EKS cluster
-  subnet_ids = concat(
-    [for s in module.public_subnets : s.public_subnet_id],
-    [for s in module.private_subnets : s.private_subnet_id]
-  )
+#   # Collect all public and private subnet IDs into one list for EKS cluster
+#   subnet_ids = concat(
+#     [for s in module.public_subnets : s.public_subnet_id],
+#     [for s in module.private_subnets : s.private_subnet_id]
+#   )
 
-  # Private subnets only for node groups / fargate
-  private_subnet_ids = [for s in module.private_subnets : s.private_subnet_id]
+#   # Private subnets only for node groups / fargate
+#   private_subnet_ids = [for s in module.private_subnets : s.private_subnet_id]
 
-  iam_module = module.IAM
-}
-#############################################
+#   iam_module = module.IAM
+# }
+# #############################################
 
 #_________________________________________
 
