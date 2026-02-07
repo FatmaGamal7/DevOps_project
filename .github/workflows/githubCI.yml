@@ -16,7 +16,7 @@ jobs:
       AWS_REGION: us-east-1       # عدلي على حسب الريجون بتاعك
       TERRAFORM_DIR: ./terraform
       HELM_CHART_DIR: ./helm
-      KUBECONFIG: ${{ runner.temp }}/kubeconfig
+      KUBECONFIG: tmp/kubeconfig
 
     steps:
     # 1️⃣ Checkout code
