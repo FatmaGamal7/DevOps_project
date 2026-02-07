@@ -1,86 +1,81 @@
-name: Terraform + Build + Deploy
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
-
-env:
-  AWS_REGION: us-east-1
-  TF_DIR: terraform
-  APP_DIR: hello_app
-  HELM_DIR: helm
-  IMAGE_NAME: hello-app
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  infra-build-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
+    env:
+      AWS_REGION: us-east-1       # عدلي على حسب الريجون بتاعك
+      TERRAFORM_DIR: ./terraform
+      HELM_CHART_DIR: ./helm
+      KUBECONFIG: ${{ runner.temp }}/kubeconfig
+
     steps:
-    # =========================
-    # Checkout
-    # =========================
-    - name: Checkout code
-      uses: actions/checkout@v4
+    # 1️⃣ Checkout code
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-    # =========================
-    # AWS Credentials
-    # =========================
+    # 2️⃣ Install AWS CLI
+    - name: Install AWS CLI
+      run: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+        aws --version
+
+    # 3️⃣ Install kubectl
+    - name: Install kubectl
+      run: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        kubectl version --client
+
+    # 4️⃣ Install Helm
+    - name: Install Helm
+      run: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        helm version
+
+    # 5️⃣ Configure AWS credentials
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws configure set region $AWS_REGION
 
-    # =========================
-    # Terraform
-    # =========================
+    # 6️⃣ Setup Terraform
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.6.7   # عدلي حسب النسخة اللي بتستخدميها
 
+    # 7️⃣ Terraform Init
     - name: Terraform Init
-      working-directory: ${{ env.TF_DIR }}
+      working-directory: ${{ env.TERRAFORM_DIR }}
       run: terraform init
 
+    # 8️⃣ Terraform Apply
     - name: Terraform Apply
-      working-directory: ${{ env.TF_DIR }}
+      working-directory: ${{ env.TERRAFORM_DIR }}
       run: terraform apply -auto-approve
 
-    - name: Get ECR Repo URL
-      id: ecr
-      working-directory: ${{ env.TF_DIR }}
-      run: |
-        echo "ECR_REPO=$(terraform output -raw repository_url)" >> $GITHUB_ENV
+    # 9️⃣ Get ECR Repository URL and set env variable
+    - name: Set ECR repo URL for Helm
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: echo "ECR_REPO=$(terraform output -raw repository_url)" >> $GITHUB_ENV
 
-    # =========================
-    # Docker Build & Push
-    # =========================
-    - name: Login to Amazon ECR
+    # 🔟 Deploy Helm chart
+    - name: Deploy Helm chart
       run: |
-        aws ecr get-login-password --region $AWS_REGION \
-        | docker login --username AWS \
-          --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com
-
-    - name: Build Docker Image
-      working-directory: ${{ env.APP_DIR }}
-      run: |
-        docker build -t $ECR_REPO:latest .
-
-    - name: Push Docker Image
-      run: |
-        docker push $ECR_REPO:latest
-
-    # =========================
-    # EKS + Helm
-    # =========================
-    - name: Update kubeconfig
-      run: |
-        aws eks update-kubeconfig \
-          --region $AWS_REGION \
-          --name ${{ secrets.EKS_CLUSTER_NAME }}
-
-    - name: Deploy with Helm
-      run: |
-        helm upgrade --install hello-app $HELM_DIR \
+        helm upgrade --install my-app ${{ env.HELM_CHART_DIR }} \
           --set image.repository=$ECR_REPO \
           --set image.tag=latest
