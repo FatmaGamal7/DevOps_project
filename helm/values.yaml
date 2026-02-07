@@ -10,6 +10,8 @@ service:
   port: 80
 
 ingress:
-  enabled: false
+  enabled: true
+  host: example.com
+  path: /api
 
 resources: {}

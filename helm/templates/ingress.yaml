@@ -2,17 +2,17 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "helm.fullname" . }}
+  name: {{ include "hello-app.fullname" . }}
 spec:
   rules:
-    - host: example.com
+    - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /
+          - path: {{ .Values.ingress.path }}
             pathType: Prefix
             backend:
               service:
-                name: {{ include "helm.fullname" . }}
+                name: {{ include "hello-app.fullname" . }}-lb
                 port:
                   number: 80
 {{- end }}

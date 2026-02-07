@@ -1,27 +1,19 @@
-{{- define "helm.name" -}}
+{{- define "hello-app.name" -}}
 {{ .Chart.Name }}
 {{- end }}
 
-{{- define "helm.fullname" -}}
-{{ .Release.Name }}
+{{- define "hello-app.fullname" -}}
+{{ printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "helm.labels" -}}
-app.kubernetes.io/name: {{ include "helm.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{- define "helm.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "helm.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Return labels for the app
-*/}}
 {{- define "hello-app.labels" -}}
-app.kubernetes.io/name: {{ .Chart.Name }}
+app.kubernetes.io/name: {{ include "hello-app.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end -}}
+{{- end }}
+
+{{- define "hello-app.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "hello-app.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
