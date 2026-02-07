@@ -205,7 +205,7 @@ jobs:
     # =========================
     - name: Deploy Helm chart
       run: |
-        helm upgrade --install my-app ${{ env.HELM_CHART_DIR }} \
+        helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
           --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
           --set image.tag=latest
 
