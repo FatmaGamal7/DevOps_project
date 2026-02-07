@@ -59,40 +59,35 @@ module "private_rts" {
   nat_id    = module.nat.nat_id
 }
 
-
+###############################
 # IAM and EKS
-#_______________________
+module "IAM" {
+  source           = "./modules/IAM"
+  env              = var.env
+  eks_cluster_name = "my-eks-cluster"
+}
 
+module "EKS" {
+  source       = "./modules/EKS"
+  cluster_name = "my-eks-cluster"
+  env          = var.env
 
-# module "IAM" {
-#   source           = "./modules/IAM"
-#   env              = var.env
-#   eks_cluster_name = "my-eks-cluster"
-# }
+  # Collect all public and private subnet IDs into one list for EKS cluster
+  subnet_ids = concat(
+    [for s in module.public_subnets : s.public_subnet_id],
+    [for s in module.private_subnets : s.private_subnet_id]
+  )
 
-# module "EKS" {
-#   source       = "./modules/EKS"
-#   cluster_name = "my-eks-cluster"
-#   env          = var.env
+  # Private subnets only for node groups / fargate
+  private_subnet_ids = [for s in module.private_subnets : s.private_subnet_id]
 
-#   # Collect all public and private subnet IDs into one list for EKS cluster
-#   subnet_ids = concat(
-#     [for s in module.public_subnets : s.public_subnet_id],
-#     [for s in module.private_subnets : s.private_subnet_id]
-#   )
-
-#   # Private subnets only for node groups / fargate
-#   private_subnet_ids = [for s in module.private_subnets : s.private_subnet_id]
-
-#   iam_module = module.IAM
-# }
-
+  iam_module = module.IAM
+}
+#############################################
 
 #_________________________________________
 
-#################################
 # ECR
-#################################
 module "ecr" {
   source = "./modules/ECR"
   
@@ -100,9 +95,7 @@ module "ecr" {
   env = var.env
 }
 
-#################################
 # Cognito
-#################################
 module "cognito" {
   source = "./modules/cognito"
 
@@ -110,9 +103,7 @@ module "cognito" {
   region = var.region
 }
 
-#################################
 # API Gateway + VPC Link
-#################################
 # module "api_gateway" {
 #   source = "./modules/APIGW"
 
@@ -146,10 +137,7 @@ module "api_gateway" {
 
 
 
-
-
 # Network Load Balancer
-#################################
 module "nlb" {
   source      = "./modules/NLB"
   name        = "my-nlb"
