@@ -79,7 +79,7 @@ jobs:
       id: set-eks-cluster
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
-        EKS_CLUSTER=$(terraform output -raw cluster_name | tr -d '\n')
+        EKS_CLUSTER=$(terraform output -raw eks_cluster_name | tr -d '\n')
         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
         echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
 
