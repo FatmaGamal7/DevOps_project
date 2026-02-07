@@ -28,6 +28,7 @@ env:
   TERRAFORM_DIR: ./terraform
   HELM_CHART_DIR: ./helm
   APP_DIR: ./hello_app
+  K8S_DIR: ./k8s
 
 jobs:
   # ===============================
@@ -36,6 +37,10 @@ jobs:
   infra:
     name: Provision Infrastructure
     runs-on: ubuntu-latest
+
+    outputs:
+      EKS_CLUSTER: ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }}
+      ECR_REPO: ${{ steps.set-ecr.outputs.ECR_REPO }}
 
     steps:
     - name: Checkout code
@@ -63,16 +68,20 @@ jobs:
       run: terraform apply -auto-approve
 
     - name: Set ECR repo URL
+      id: set-ecr
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
         ECR_REPO=$(terraform output -raw repository_url | tr -d '\n')
         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+        echo "::set-output name=ECR_REPO::$ECR_REPO"
 
     - name: Set EKS Cluster name
+      id: set-eks-cluster
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
         EKS_CLUSTER=$(terraform output -raw cluster_name | tr -d '\n')
         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
+        echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
 
   # ==================================
   # Stage 2️⃣: Platform Tools (Helm)
@@ -81,10 +90,6 @@ jobs:
     name: Install Platform Tools
     needs: infra
     runs-on: ubuntu-latest
-
-    env:
-      AWS_REGION: ${{ env.AWS_REGION }}
-      EKS_CLUSTER: ${{ needs.infra.outputs.EKS_CLUSTER }}
 
     steps:
     - name: Checkout repo
@@ -110,7 +115,7 @@ jobs:
 
     - name: Update kubeconfig
       run: |
-        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
 
     - name: Install ingress-nginx controller
       run: |
@@ -152,11 +157,6 @@ jobs:
     needs: [infra, platform-tools]
     runs-on: ubuntu-latest
 
-    env:
-      AWS_REGION: ${{ env.AWS_REGION }}
-      EKS_CLUSTER: ${{ needs.infra.outputs.EKS_CLUSTER }}
-      ECR_REPO: ${{ needs.infra.outputs.ECR_REPO }}
-
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
@@ -174,7 +174,7 @@ jobs:
         curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
-        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
         kubectl get nodes
 
     - name: Install Helm
@@ -186,18 +186,18 @@ jobs:
     # =========================
     - name: Login to Amazon ECR
       run: |
-        aws ecr get-login-password --region $AWS_REGION \
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} \
         | docker login --username AWS \
-          --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com
+          --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
     - name: Build Docker Image
       working-directory: ${{ env.APP_DIR }}
       run: |
-        docker build -t $ECR_REPO:latest .
+        docker build -t ${{ needs.infra.outputs.ECR_REPO }}:latest .
 
     - name: Push Docker Image
       run: |
-        docker push $ECR_REPO:latest
+        docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
 
     # =========================
     # Helm Deploy
@@ -205,13 +205,14 @@ jobs:
     - name: Deploy Helm chart
       run: |
         helm upgrade --install my-app ${{ env.HELM_CHART_DIR }} \
-          --set image.repository=$ECR_REPO \
+          --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
           --set image.tag=latest
 
     - name: Verify Deployment
       run: |
         kubectl get pods
         kubectl get svc
+
 
 
 
