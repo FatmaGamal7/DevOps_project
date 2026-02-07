@@ -14,31 +14,42 @@ parameters:
     default: false
 
 variables:
+  # Terraform variables
   TF_DIR: terraform
   TF_VAR_FILE: prod.auto.tfvars
   AWS_SERVICE_CONNECTION: fatma_aws
   AWS_REGION: us-east-1
 
+  # Docker / App variables
+  HELLO_APP_DIR: hello_app
+  IMAGE_NAME: myapp/hello_app
+  IMAGE_TAG: $(Build.BuildId)
+  DOCKER_REGISTRY_CONNECTION: docker_hub_connection
+
+  # Helm / Kubernetes variables
+  HELM_CHART_DIR: $(HELLO_APP_DIR)/chart
+  KUBE_CONFIG: $(KUBECONFIG_PATH) # يجب أن تجهزيه أو تستخدموا Azure DevOps Kubernetes service connection
+
 stages:
-- stage: BuildAWSInfrastructure
-  displayName: 'Build AWS Infrastructure'
+
+# ==============================
+# Terraform Stages
+# ==============================
+- stage: Terraform_Init
+  displayName: 'Terraform Init'
   jobs:
-  - job: TerraformJob
-    displayName: 'Terraform on fatma_agent'
+  - job: Init
+    displayName: 'Terraform Init'
     pool:
       name: queue-fatma_gamal
-
-
     steps:
     - checkout: self
-
     - task: TerraformInstaller@1
-      displayName: Install Terraform
+      displayName: 'Install Terraform'
       inputs:
         terraformVersion: latest
-
     - task: AWSShellScript@1
-      displayName: Terraform init
+      displayName: 'Terraform Init'
       inputs:
         awsCredentials: $(AWS_SERVICE_CONNECTION)
         regionName: $(AWS_REGION)
@@ -48,8 +59,18 @@ stages:
           cd "$(TF_DIR)"
           terraform init
 
+- stage: Terraform_Plan
+  displayName: 'Terraform Plan'
+  dependsOn: Terraform_Init
+  jobs:
+  - job: Plan
+    displayName: 'Terraform Plan'
+    pool:
+      name: queue-fatma_gamal
+    steps:
+    - checkout: self
     - task: AWSShellScript@1
-      displayName: Terraform plan
+      displayName: 'Terraform Plan'
       inputs:
         awsCredentials: $(AWS_SERVICE_CONNECTION)
         regionName: $(AWS_REGION)
@@ -63,8 +84,18 @@ stages:
             terraform plan -out=tfplan -var-file="$(TF_VAR_FILE)"
           fi
 
+- stage: Terraform_Apply
+  displayName: 'Terraform Apply'
+  dependsOn: Terraform_Plan
+  jobs:
+  - job: Apply
+    displayName: 'Terraform Apply'
+    pool:
+      name: queue-fatma_gamal
+    steps:
+    - checkout: self
     - task: AWSShellScript@1
-      displayName: Terraform apply
+      displayName: 'Terraform Apply'
       inputs:
         awsCredentials: $(AWS_SERVICE_CONNECTION)
         regionName: $(AWS_REGION)
@@ -73,3 +104,81 @@ stages:
           set -euo pipefail
           cd "$(TF_DIR)"
           terraform apply -auto-approve tfplan
+
+- stage: Terraform_Destroy
+  displayName: 'Terraform Destroy'
+  condition: eq('${{ parameters.destroy }}', true)
+  dependsOn: Terraform_Plan
+  jobs:
+  - job: Destroy
+    displayName: 'Terraform Destroy'
+    pool:
+      name: queue-fatma_gamal
+    steps:
+    - checkout: self
+    - task: AWSShellScript@1
+      displayName: 'Terraform Destroy'
+      inputs:
+        awsCredentials: $(AWS_SERVICE_CONNECTION)
+        regionName: $(AWS_REGION)
+        scriptType: inline
+        inlineScript: |
+          set -euo pipefail
+          cd "$(TF_DIR)"
+          terraform destroy -auto-approve -var-file="$(TF_VAR_FILE)"
+
+# ==============================
+# Docker Build & Push Stage
+# ==============================
+- stage: Docker_BuildPush
+  displayName: 'Docker Build & Push'
+  dependsOn: Terraform_Apply
+  jobs:
+  - job: BuildPush
+    displayName: 'Build & Push Docker Image'
+    pool:
+      name: queue-fatma_gamal
+    steps:
+    - checkout: self
+    - task: Docker@2
+      displayName: 'Build & Push Docker Image'
+      inputs:
+        containerRegistry: $(DOCKER_REGISTRY_CONNECTION)
+        repository: $(IMAGE_NAME)
+        command: buildAndPush
+        Dockerfile: '$(HELLO_APP_DIR)/Dockerfile'
+        buildContext: '$(HELLO_APP_DIR)'
+        tags: |
+          $(IMAGE_TAG)
+
+# ==============================
+# Helm Deploy Stage
+# ==============================
+- stage: Helm_Deploy
+  displayName: 'Helm Deploy to EKS'
+  dependsOn: Docker_BuildPush
+  jobs:
+  - job: Deploy
+    displayName: 'Helm Deploy'
+    pool:
+      name: queue-fatma_gamal
+    steps:
+    - checkout: self
+    - task: HelmInstaller@1
+      displayName: 'Install Helm'
+      inputs:
+        helmVersionToInstall: 'latest'
+    - task: HelmDeploy@0
+      displayName: 'Helm Upgrade/Install'
+      inputs:
+        connectionType: 'Kubernetes Service Connection'  # أو استخدمي Kubeconfig file لو مجهز
+        kubernetesServiceConnection: $(KUBE_CONFIG)
+        namespace: default
+        command: upgrade
+        chartType: FilePath
+        chartPath: '$(HELM_CHART_DIR)'
+        releaseName: hello-app
+        overrideValues: |
+          image.repository=$(IMAGE_NAME)
+          image.tag=$(IMAGE_TAG)
+        install: true

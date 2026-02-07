@@ -54,3 +54,8 @@ output "nat_eip" {
 output "nlb_dns_name" {
   value = module.nlb.nlb_dns_name
 }
+
+
+output "repository_url" {
+  value = module.ecr.repository_url
+}
