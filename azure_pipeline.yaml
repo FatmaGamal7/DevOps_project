@@ -6,179 +6,151 @@ parameters:
     displayName: Environment
     type: string
     default: prod
-    values: [nonprod, prod]
+    values:
+      - nonprod
+      - prod
 
   - name: destroy
-    displayName: Destroy
+    displayName: Destroy Infrastructure
     type: boolean
     default: false
 
 variables:
-  # Terraform variables
+  # Directories
   TF_DIR: terraform
-  TF_VAR_FILE: prod.auto.tfvars
-  AWS_SERVICE_CONNECTION: fatma_aws
+  APP_DIR: hello_app
+  HELM_DIR: helm
+
+  # AWS
   AWS_REGION: us-east-1
+  AWS_SERVICE_CONNECTION: fatma_aws
 
-  # Docker / App variables
-  HELLO_APP_DIR: hello_app
-  IMAGE_NAME: myapp/hello_app
+  # Image
   IMAGE_TAG: $(Build.BuildId)
-  DOCKER_REGISTRY_CONNECTION: docker_hub_connection
 
-  # Helm / Kubernetes variables
-  HELM_CHART_DIR: $(HELLO_APP_DIR)/chart
-  KUBE_CONFIG: $(KUBECONFIG_PATH) # يجب أن تجهزيه أو تستخدموا Azure DevOps Kubernetes service connection
-
+########################################
+# STAGE 1 – Terraform (Infra + ECR)
+########################################
 stages:
-
-# ==============================
-# Terraform Stages
-# ==============================
-- stage: Terraform_Init
-  displayName: 'Terraform Init'
+- stage: Terraform
+  displayName: Terraform Infrastructure
   jobs:
-  - job: Init
-    displayName: 'Terraform Init'
+  - job: TerraformApply
     pool:
       name: queue-fatma_gamal
+
     steps:
     - checkout: self
+
     - task: TerraformInstaller@1
-      displayName: 'Install Terraform'
+      displayName: Install Terraform
       inputs:
         terraformVersion: latest
+
     - task: AWSShellScript@1
-      displayName: 'Terraform Init'
+      name: terraform
+      displayName: Terraform Init / Apply
       inputs:
         awsCredentials: $(AWS_SERVICE_CONNECTION)
         regionName: $(AWS_REGION)
         scriptType: inline
         inlineScript: |
-          set -euo pipefail
-          cd "$(TF_DIR)"
+          set -e
+          cd $(TF_DIR)
+
           terraform init
 
-- stage: Terraform_Plan
-  displayName: 'Terraform Plan'
-  dependsOn: Terraform_Init
-  jobs:
-  - job: Plan
-    displayName: 'Terraform Plan'
-    pool:
-      name: queue-fatma_gamal
-    steps:
-    - checkout: self
-    - task: AWSShellScript@1
-      displayName: 'Terraform Plan'
-      inputs:
-        awsCredentials: $(AWS_SERVICE_CONNECTION)
-        regionName: $(AWS_REGION)
-        scriptType: inline
-        inlineScript: |
-          set -euo pipefail
-          cd "$(TF_DIR)"
           if [ "${{ parameters.destroy }}" = "True" ]; then
-            terraform plan -destroy -out=tfplan -var-file="$(TF_VAR_FILE)"
-          else
-            terraform plan -out=tfplan -var-file="$(TF_VAR_FILE)"
+            terraform destroy -auto-approve -var-file=${{ parameters.env }}.auto.tfvars
+            exit 0
           fi
 
-- stage: Terraform_Apply
-  displayName: 'Terraform Apply'
-  dependsOn: Terraform_Plan
-  jobs:
-  - job: Apply
-    displayName: 'Terraform Apply'
-    pool:
-      name: queue-fatma_gamal
-    steps:
-    - checkout: self
-    - task: AWSShellScript@1
-      displayName: 'Terraform Apply'
-      inputs:
-        awsCredentials: $(AWS_SERVICE_CONNECTION)
-        regionName: $(AWS_REGION)
-        scriptType: inline
-        inlineScript: |
-          set -euo pipefail
-          cd "$(TF_DIR)"
-          terraform apply -auto-approve tfplan
+          terraform apply -auto-approve -var-file=${{ parameters.env }}.auto.tfvars
 
-- stage: Terraform_Destroy
-  displayName: 'Terraform Destroy'
-  condition: eq('${{ parameters.destroy }}', true)
-  dependsOn: Terraform_Plan
-  jobs:
-  - job: Destroy
-    displayName: 'Terraform Destroy'
-    pool:
-      name: queue-fatma_gamal
-    steps:
-    - checkout: self
-    - task: AWSShellScript@1
-      displayName: 'Terraform Destroy'
-      inputs:
-        awsCredentials: $(AWS_SERVICE_CONNECTION)
-        regionName: $(AWS_REGION)
-        scriptType: inline
-        inlineScript: |
-          set -euo pipefail
-          cd "$(TF_DIR)"
-          terraform destroy -auto-approve -var-file="$(TF_VAR_FILE)"
+          # Get ECR repo URL
+          ECR_URL=$(terraform output -raw ecr_repo_url)
+          echo "ECR Repo: $ECR_URL"
 
-# ==============================
-# Docker Build & Push Stage
-# ==============================
-- stage: Docker_BuildPush
-  displayName: 'Docker Build & Push'
-  dependsOn: Terraform_Apply
+          echo "##vso[task.setvariable variable=ECR_URL]$ECR_URL"
+
+########################################
+# STAGE 2 – Docker Build & Push to ECR
+########################################
+- stage: Docker
+  displayName: Build & Push Docker Image
+  dependsOn: Terraform
+  condition: succeeded()
+
   jobs:
   - job: BuildPush
-    displayName: 'Build & Push Docker Image'
     pool:
       name: queue-fatma_gamal
-    steps:
-    - checkout: self
-    - task: Docker@2
-      displayName: 'Build & Push Docker Image'
-      inputs:
-        containerRegistry: $(DOCKER_REGISTRY_CONNECTION)
-        repository: $(IMAGE_NAME)
-        command: buildAndPush
-        Dockerfile: '$(HELLO_APP_DIR)/Dockerfile'
-        buildContext: '$(HELLO_APP_DIR)'
-        tags: |
-          $(IMAGE_TAG)
 
-# ==============================
-# Helm Deploy Stage
-# ==============================
-- stage: Helm_Deploy
-  displayName: 'Helm Deploy to EKS'
-  dependsOn: Docker_BuildPush
-  jobs:
-  - job: Deploy
-    displayName: 'Helm Deploy'
-    pool:
-      name: queue-fatma_gamal
     steps:
     - checkout: self
+
+    # (Optional) Docker Hub Login – to avoid rate limit
+    - task: Docker@2
+      displayName: Docker Hub Login
+      inputs:
+        command: login
+        containerRegistry: docker_hub_connection
+
+    - task: AWSShellScript@1
+      displayName: Build & Push Image to ECR
+      inputs:
+        awsCredentials: $(AWS_SERVICE_CONNECTION)
+        regionName: $(AWS_REGION)
+        scriptType: inline
+        inlineScript: |
+          set -e
+
+          aws ecr get-login-password --region $(AWS_REGION) \
+            | docker login --username AWS --password-stdin $(ECR_URL)
+
+          cd $(APP_DIR)
+
+          docker build -t $(ECR_URL):$(IMAGE_TAG) .
+          docker push $(ECR_URL):$(IMAGE_TAG)
+
+          echo "##vso[task.setvariable variable=IMAGE_FULL]$(ECR_URL):$(IMAGE_TAG)"
+
+########################################
+# STAGE 3 – Helm Deploy to EKS
+########################################
+- stage: Helm
+  displayName: Deploy Application with Helm
+  dependsOn: Docker
+  condition: succeeded()
+
+  jobs:
+  - job: HelmDeploy
+    pool:
+      name: queue-fatma_gamal
+
+    steps:
+    - checkout: self
+
     - task: HelmInstaller@1
-      displayName: 'Install Helm'
+      displayName: Install Helm
       inputs:
-        helmVersionToInstall: 'latest'
-    - task: HelmDeploy@0
-      displayName: 'Helm Upgrade/Install'
+        helmVersionToInstall: latest
+
+    - task: AWSShellScript@1
+      displayName: Helm Upgrade / Install
       inputs:
-        connectionType: 'Kubernetes Service Connection'  # أو استخدمي Kubeconfig file لو مجهز
-        kubernetesServiceConnection: $(KUBE_CONFIG)
-        namespace: default
-        command: upgrade
-        chartType: FilePath
-        chartPath: '$(HELM_CHART_DIR)'
-        releaseName: hello-app
-        overrideValues: |
-          image.repository=$(IMAGE_NAME)
-          image.tag=$(IMAGE_TAG)
-        install: true
+        awsCredentials: $(AWS_SERVICE_CONNECTION)
+        regionName: $(AWS_REGION)
+        scriptType: inline
+        inlineScript: |
+          set -e
+
+          aws eks update-kubeconfig \
+            --region $(AWS_REGION) \
+            --name my-eks-cluster
+
+          cd $(HELM_DIR)
+
+          helm upgrade --install hello-app . \
+            --set image.repository=$(ECR_URL) \
+            --set image.tag=$(IMAGE_TAG)
