@@ -41,25 +41,11 @@ jobs:
         kubectl version --client
 
     # Configure kubeconfig
-    - name: Configure kubeconfig from Terraform output
-      shell: bash
+    - name: Update kubeconfig
       run: |
-        set -euo pipefail
-
-        cd "$TERRAFORM_DIR"
-
-        terraform init -input=false
-        terraform workspace select default
-
-        CLUSTER_NAME=$(terraform output -raw cluster_name | tr -d '\n' | xargs)
-
-        echo "Cluster name is: $CLUSTER_NAME"
-
         aws eks update-kubeconfig \
-          --name "$CLUSTER_NAME" \
-          --region "$AWS_REGION"
-
-        kubectl get nodes
+          --region $AWS_REGION \
+          --name ${{ secrets.EKS_CLUSTER_NAME }}
 
     # 4️⃣ Install Helm
     - name: Install Helm
