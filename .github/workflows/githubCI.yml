@@ -28,7 +28,7 @@ env:
   TERRAFORM_DIR: ./terraform
   HELM_CHART_DIR: ./helm
   APP_DIR: ./hello_app
-  K8S_DIR: ./k8s   # << جديد: أي ملفات k8s هنا
+  K8S_DIR: ./k8s
 
 jobs:
   # ===============================
