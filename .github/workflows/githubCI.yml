@@ -72,7 +72,6 @@ jobs:
     # 9️⃣ Get ECR Repository URL and set env variable
     - name: Set ECR repo URL for Helm
       working-directory: ${{ env.TERRAFORM_DIR }}
-      - name: Set ECR repo URL for Helm
       run: |
         ECR_REPO=$(terraform output -raw repository_url | tr -d '\n')
         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
