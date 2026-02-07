@@ -32,7 +32,6 @@ jobs:
         aws --version
 
     # 3️⃣ Install kubectl
-    # kubectl
     - name: Install kubectl
       run: |
         K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
@@ -40,6 +39,13 @@ jobs:
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
         kubectl version --client
+
+    #  kubeconfig
+    - name: Update kubeconfig for EKS
+      run: |
+        aws eks update-kubeconfig \
+        --region $AWS_REGION \
+        --name $EKS_CLUSTER_NAME
 
     # 4️⃣ Install Helm
     - name: Install Helm
