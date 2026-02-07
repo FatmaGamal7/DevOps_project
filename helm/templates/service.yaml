@@ -3,11 +3,11 @@ kind: Service
 metadata:
   name: {{ include "hello-app.fullname" . }}-lb
   labels:
-    {{- include "my-app.labels" . | nindent 4 }}
+    {{- include "hello-app.labels" . | nindent 4 }}
 spec:
   type: LoadBalancer
   selector:
-    {{- include "my-app.selectorLabels" . | nindent 4 }}
+    {{- include "hello-app.selectorLabels" . | nindent 4 }}
   ports:
     - port: 80
       targetPort: 80
