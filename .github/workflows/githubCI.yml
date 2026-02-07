@@ -54,9 +54,9 @@ jobs:
 
     # 6️⃣ Setup Terraform
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      uses: hashicorp/setup-terraform@v2.5.1
       with:
-        terraform_version: 1.6.7   # عدلي حسب النسخة اللي بتستخدميها
+        terraform_version: 1.14.3 
 
     # 7️⃣ Terraform Init
     - name: Terraform Init
