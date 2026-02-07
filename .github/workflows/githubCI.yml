@@ -1,0 +1,86 @@
+name: Terraform + Build + Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  TF_DIR: terraform
+  APP_DIR: hello_app
+  HELM_DIR: helm
+  IMAGE_NAME: hello-app
+
+jobs:
+  infra-build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # =========================
+    # Checkout
+    # =========================
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # =========================
+    # AWS Credentials
+    # =========================
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    # =========================
+    # Terraform
+    # =========================
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform init
+
+    - name: Terraform Apply
+      working-directory: ${{ env.TF_DIR }}
+      run: terraform apply -auto-approve
+
+    - name: Get ECR Repo URL
+      id: ecr
+      working-directory: ${{ env.TF_DIR }}
+      run: |
+        echo "ECR_REPO=$(terraform output -raw repository_url)" >> $GITHUB_ENV
+
+    # =========================
+    # Docker Build & Push
+    # =========================
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION \
+        | docker login --username AWS \
+          --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+    - name: Build Docker Image
+      working-directory: ${{ env.APP_DIR }}
+      run: |
+        docker build -t $ECR_REPO:latest .
+
+    - name: Push Docker Image
+      run: |
+        docker push $ECR_REPO:latest
+
+    # =========================
+    # EKS + Helm
+    # =========================
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig \
+          --region $AWS_REGION \
+          --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+    - name: Deploy with Helm
+      run: |
+        helm upgrade --install hello-app $HELM_DIR \
+          --set image.repository=$ECR_REPO \
+          --set image.tag=latest
