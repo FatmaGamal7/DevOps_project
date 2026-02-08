@@ -138,7 +138,6 @@ jobs:
             -n ingress-nginx --timeout=120s
         fi
 
-    # install argoCD
     - name: Install Argo CD
       run: |
         set -e
@@ -152,12 +151,11 @@ jobs:
           helm upgrade --install argocd argo/argo-cd \
             --namespace argocd \
             --create-namespace \
-            --wait \
-            --timeout 10m \
             --set server.service.type=ClusterIP \
             --set server.ingress.enabled=true \
             --set server.ingress.ingressClassName=nginx
         fi
+
 
 
     - name: Verify platform tools
