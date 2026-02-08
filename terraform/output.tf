@@ -53,11 +53,11 @@ output "eks_node_role_arn" {
 ###########
 
 output "nlb_arn" {
-  value = module.nlb.nlb.arn
+  value = module.nlb.nlb_arn
 }
 
 output "nlb_dns_name" {
-  value = module.nlb.nlb.dns_name
+  value = module.nlb.nlb_dns_name
 }
 
 output "repository_url" {
