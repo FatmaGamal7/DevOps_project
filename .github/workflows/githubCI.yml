@@ -194,7 +194,6 @@ jobs:
     - name: Push Docker Image
       run: |
         docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
-        kubectl delete ingress hello-ingress
 
     # =========================
     # Helm Deploy
