@@ -20,7 +20,7 @@ resource "aws_eks_node_group" "managed" {
   node_role_arn   = var.iam_module.node_role_arn
   subnet_ids      = var.private_subnet_ids
 
-  instance_types = ["t3.micro"]
+  instance_types = ["t3.small"]
   capacity_type  = "ON_DEMAND"
 
   scaling_config {
@@ -46,25 +46,6 @@ resource "aws_eks_fargate_profile" "default" {
   depends_on = [aws_eks_cluster.this]
 }
 
-# EKS Addons
-# resource "aws_eks_addon" "coredns" {
-#   cluster_name       = aws_eks_cluster.this.name
-#   addon_name         = "coredns"
-#   addon_version      = "v1.23.15-eksbuild.2"
-#   service_account_role_arn = var.iam_module.fargate_role_arn
-# }
-
-# resource "aws_eks_addon" "kube_proxy" {
-#   cluster_name  = aws_eks_cluster.this.name
-#   addon_name    = "kube-proxy"
-#   addon_version = "v1.23.15-eksbuild.2"
-# }
-
-# resource "aws_eks_addon" "vpc_cni" {
-#   cluster_name  = aws_eks_cluster.this.name
-#   addon_name    = "vpc-cni"
-#   addon_version = "v1.13.13-eksbuild.1"
-# }
 
 resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.this.name
