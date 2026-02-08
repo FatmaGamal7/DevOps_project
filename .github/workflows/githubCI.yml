@@ -248,9 +248,9 @@ jobs:
 
 #########
 # access the app
-    # - name: Apply Ingress
-    #   run: |
-    #     kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
+    - name: Apply Ingress
+      run: |
+        kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
 
     - name: Wait for Ingress to be ready
       run: |
