@@ -247,3 +247,12 @@ jobs:
         done
         echo "Ingress LoadBalancer not ready after waiting"
         exit 1
+    - name: Verify pods and svc
+      run: |
+        kubectl get ingress hello-app-ingress -o wide
+        kubectl get pods -n ingress-nginx
+        kubectl get svc -n ingress-nginx
+
+
+
+
