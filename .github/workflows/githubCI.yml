@@ -83,6 +83,21 @@ jobs:
         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
         echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
 
+
+############
+    - name: Get Terraform NLB outputs
+      id: tf_outputs
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: |
+        NLB_ARN=$(terraform output -raw nlb_arn)
+        NLB_DNS=$(terraform output -raw nlb_dns_name)
+        echo "NLB_ARN=$NLB_ARN" >> $GITHUB_ENV
+        echo "NLB_DNS=$NLB_DNS" >> $GITHUB_ENV
+        echo "::set-output name=NLB_ARN::$NLB_ARN"
+        echo "::set-output name=NLB_DNS::$NLB_DNS"
+###########3
+
+
   # ==================================
   # Stage 2️⃣: Platform Tools (Helm)
   # ==================================
@@ -133,7 +148,10 @@ jobs:
           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
           helm repo update
           helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-            --namespace ingress-nginx --create-namespace
+            --namespace ingress-nginx --create-namespace \
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-target-group-arn"="${{ needs.infra.outputs.NLB_ARN }}"
+
           kubectl rollout status deployment/ingress-nginx-controller \
             -n ingress-nginx --timeout=120s
         fi
