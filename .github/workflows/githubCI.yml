@@ -240,8 +240,19 @@ jobs:
           --for=condition=available deployment/ingress-nginx-controller \
           --timeout=180s
 
-    - name: Get Application URL
+    - name: Wait and Get Application URL
       run: |
-        echo "Application URL:"
-        kubectl get ingress hello-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-        echo
+        echo "Waiting for Application LoadBalancer..."
+        for i in {1..30}; do
+          HOSTNAME=$(kubectl get ingress hello-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          if [ -n "$HOSTNAME" ]; then
+            echo "Application URL:"
+            echo "http://$HOSTNAME"
+            exit 0
+          fi
+          echo "Still waiting..."
+          sleep 10
+        done
+
+        echo "Ingress LoadBalancer not ready after waiting"
+        exit 1
