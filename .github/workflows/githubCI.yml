@@ -139,9 +139,7 @@ jobs:
           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
           helm repo update
           helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-            --namespace ingress-nginx --create-namespace \
-            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
-            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-target-group-arn"="${{ needs.infra.outputs.NLB_ARN }}"
+            --namespace ingress-nginx --create-namespace
           kubectl rollout status deployment/ingress-nginx-controller \
             -n ingress-nginx --timeout=120s
         fi
