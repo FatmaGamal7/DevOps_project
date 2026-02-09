@@ -157,7 +157,7 @@ jobs:
             --namespace ingress-nginx --create-namespace \
             --set controller.service.type=LoadBalancer \
             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
-            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="${{ needs.infra.outputs.NLB_ARN }}"\
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="arn:aws:elasticloadbalancing:us-east-1:174508894676:loadbalancer/net/my-nlb-prod/e8c86604baf7bb3b"\
             --set controller.service.externalTrafficPolicy=Local
 
           kubectl rollout status deployment/ingress-nginx-controller \
