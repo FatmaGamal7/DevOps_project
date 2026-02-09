@@ -1,6 +1,5 @@
-resource "aws_iam_policy" "this" {
+resource "aws_iam_policy" "alb_controller" {
   name = "${var.env}-AWSLoadBalancerControllerPolicy"
-
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -18,9 +17,8 @@ resource "aws_iam_policy" "this" {
   })
 }
 
-resource "aws_iam_role" "this" {
+resource "aws_iam_role" "alb_controller" {
   name = "${var.env}-eks-alb-controller-role"
-
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -38,7 +36,7 @@ resource "aws_iam_role" "this" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  role       = aws_iam_role.this.name
-  policy_arn = aws_iam_policy.this.arn
+resource "aws_iam_role_policy_attachment" "alb_controller_attach" {
+  role       = aws_iam_role.alb_controller.name
+  policy_arn = aws_iam_policy.alb_controller.arn
 }

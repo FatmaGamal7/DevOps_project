@@ -160,14 +160,15 @@ module "nlb" {
 
 
 #########
-module "oidc" {
-  source        = "./modules/OIDC"
-  cluster_name  = module.EKS.cluster_name
+module "OIDC" {
+  source = "./modules/OIDC"
+  cluster_name = module.EKS.cluster_name 
 }
 
-module "alb_controller_iam" {
-  source                = "./modules/IRSA"
-  env                   = var.env
-  oidc_provider_arn     = module.OIDC.oidc_provider_arn
-  oidc_provider_url     = module.OIDC.oidc_provider_url
+
+module "IRSA" {
+  source = "./modules/IRSA"
+  env    = var.env
+  oidc_provider_arn = module.EKS.oidc_provider_arn
+  oidc_provider_url = module.EKS.oidc_provider_url
 }
