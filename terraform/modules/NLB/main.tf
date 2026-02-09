@@ -43,3 +43,13 @@ resource "aws_lb_listener" "nlb_listener" {
 
 
 
+###########sg to nlb correction
+
+resource "aws_security_group_rule" "nlb_to_nodes" {
+  type              = "ingress"
+  from_port         = 30081               # NodePort الجديد
+  to_port           = 30081
+  protocol          = "tcp"
+  security_group_id = aws_eks_node_group.managed.resources_security_group_id
+  cidr_blocks       = ["0.0.0.0/0"]       # لو NLB public
+}

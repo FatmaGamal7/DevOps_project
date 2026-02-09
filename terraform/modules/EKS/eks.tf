@@ -64,13 +64,4 @@ resource "aws_eks_addon" "vpc_cni" {
 
 
 
-###########sg to nlb correction
 
-resource "aws_security_group_rule" "nlb_to_nodes" {
-  type                     = "ingress"
-  from_port                = 30080  # NodePort الخاص بالingress-nginx
-  to_port                  = 30080
-  protocol                 = "tcp"
-  security_group_id        = module.eks.node_sg_id  # SG للـ EKS nodes
-  cidr_blocks              = ["0.0.0.0/0"]         # لو NLB public
-}
