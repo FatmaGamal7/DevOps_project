@@ -22,3 +22,7 @@ variable "iam_module" {
   description = "IAM module outputs (cluster, node, fargate roles)"
   type        = any
 }
+
+variable "node_sg_id" {
+  type = string
+}

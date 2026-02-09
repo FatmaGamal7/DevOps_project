@@ -41,3 +41,8 @@ resource "aws_security_group" "eks_nodes_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+output "eks_nodes_sg" {
+  value = aws_security_group.eks_nodes_sg.id
+  
+}

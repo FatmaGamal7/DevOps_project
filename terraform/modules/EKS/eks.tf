@@ -24,7 +24,7 @@ resource "aws_eks_node_group" "managed" {
   capacity_type  = "ON_DEMAND"
 
   remote_access {
-    source_security_group_ids = [aws_security_group.eks_nodes_sg.id]
+    source_security_group_ids = [var.node_sg_id]
   }
 
   scaling_config {
