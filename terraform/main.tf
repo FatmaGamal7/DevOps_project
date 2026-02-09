@@ -65,7 +65,7 @@ module "security_group" {
   source        = "./modules/security_group"
   env           = var.env
   vpc_id        = module.vpc.vpc_id
-  private_cidrs = module.private_subnets[*].private_subnet_id
+  private_cidrs = local.private_cidrs[*]
 }
 
 
