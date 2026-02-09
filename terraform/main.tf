@@ -81,7 +81,7 @@ module "EKS" {
   source       = "./modules/EKS"
   cluster_name = "my-eks-cluster"
   env          = var.env
-  node_sg_id = module.s
+  node_sg_id = module.security_group.eks_nodes_sg
   # Collect all public and private subnet IDs into one list for EKS cluster
   subnet_ids = concat(
     [for s in module.public_subnets : s.public_subnet_id],
