@@ -167,10 +167,10 @@ module "OIDC" {
 }
 
 
-module "alb_controller_iam" {
+module "IRSA" {
   source = "./modules/IRSA"
 
-  env                = var.env
-  oidc_provider_arn  = module.OIDC.oidc_provider_arn
-  oidc_provider_url  = module.EKS.eks_cluster_oidc_issuer
+  env               = var.env
+  oidc_provider_arn = module.OIDC.oidc_provider_arn   # لو عندك module OIDC
+  oidc_provider_url = module.EKS.eks_cluster_oidc_issuer
 }
