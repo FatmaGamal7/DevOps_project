@@ -137,16 +137,16 @@ module "api_gateway" {
 
 
 
-# Network Load Balancer
-module "nlb" {
-  source      = "./modules/NLB"
-  name        = "my-nlb"
-  env         = var.env
-  subnet_ids  = module.public_subnets[*].public_subnet_id
-  scheme      = "internet-facing"
-  listener_port = 80
-  vpc_id      = module.vpc.vpc_id
-}
+# # Network Load Balancer
+# module "nlb" {
+#   source      = "./modules/NLB"
+#   name        = "my-nlb"
+#   env         = var.env
+#   subnet_ids  = module.public_subnets[*].public_subnet_id
+#   scheme      = "internet-facing"
+#   listener_port = 80
+#   vpc_id      = module.vpc.vpc_id
+# }
 
 
 
