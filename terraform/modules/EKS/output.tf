@@ -6,8 +6,7 @@ output "cluster_arn" {
   value = aws_eks_cluster.this.arn
 }
 
-output "oidc_issuer_url" {
-  value = module.EKS.eks_cluster_oidc_issuer
+output "eks_cluster_oidc_issuer" {
+  value = aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
-
 
