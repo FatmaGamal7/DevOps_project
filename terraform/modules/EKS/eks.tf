@@ -6,6 +6,8 @@ resource "aws_eks_cluster" "this" {
 
   vpc_config {
     subnet_ids = var.subnet_ids
+    security_group_ids = [var.node_sg_id] # دي الـ SG اللي عملتيها
+
   }
 
   depends_on = [
@@ -19,13 +21,11 @@ resource "aws_eks_node_group" "managed" {
   node_group_name = "${var.env}-managed"
   node_role_arn   = var.iam_module.node_role_arn
   subnet_ids      = var.private_subnet_ids
+  
 
   instance_types = ["t3.small"]
   capacity_type  = "ON_DEMAND"
 
-  remote_access {
-    source_security_group_ids = [var.node_sg_id]
-  }
 
   scaling_config {
     desired_size = 2
