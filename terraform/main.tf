@@ -59,6 +59,16 @@ module "private_rts" {
   nat_id    = module.nat.nat_id
 }
 
+########################
+# security group to eks
+module "security_group" {
+  source        = "./modules/security_group"
+  env           = var.env
+  vpc_id        = module.vpc.vpc_id
+  private_cidrs = module.private_subnets[*].private_subnet_id
+}
+
+
 ###############################
 # IAM and EKS
 module "IAM" {
@@ -71,7 +81,7 @@ module "EKS" {
   source       = "./modules/EKS"
   cluster_name = "my-eks-cluster"
   env          = var.env
-  node_sg_id = module.security_group.eks_nodes_sg_id
+  node_sg_id = module.s
   # Collect all public and private subnet IDs into one list for EKS cluster
   subnet_ids = concat(
     [for s in module.public_subnets : s.public_subnet_id],
