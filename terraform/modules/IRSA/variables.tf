@@ -1,3 +1,11 @@
-variable "env" {}
-variable "oidc_provider_arn" {}
-variable "oidc_provider_url" {}
+variable "env" {
+  type = string
+}
+
+variable "oidc_provider_arn" {
+  type = string
+}
+
+variable "oidc_provider_url" {
+  type = string
+}

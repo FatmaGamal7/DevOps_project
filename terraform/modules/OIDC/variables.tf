@@ -1,7 +1,7 @@
-variable "cluster_name" {
+variable "oidc_provider_url" {
   type = string
 }
 
-variable "oidc_provider_url" {
+variable "cluster_name" {
   type = string
 }
