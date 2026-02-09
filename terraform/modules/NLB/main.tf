@@ -12,15 +12,11 @@ resource "aws_lb" "nlb" {
   }
 }
 
-# NLB listener example (TCP 80)
-variable "listener_port" {
-  type    = number
-  default = 80
-}
+
 
 resource "aws_lb_target_group" "nlb_tg" {
   name        = "nlb-tg-${var.env}"
-  port        = var.listener_port
+  port        = var.node_port
   protocol    = "TCP"
   vpc_id      = var.vpc_id
   target_type = "instance"   
