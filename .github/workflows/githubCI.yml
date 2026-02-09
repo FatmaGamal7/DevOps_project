@@ -331,22 +331,6 @@
 name: CI/CD Pipeline
 
 on:
-
-  # workflow_dispatch:
-  #   inputs:
-  #     env:
-  #       description: 'Environment'
-  #       required: true
-  #       default: 'prod'
-  #       type: choice
-  #       options:
-  #         - nonprod
-  #         - prod
-  #     destroy:
-  #       description: 'Destroy resources?'
-  #       required: true
-  #       default: false
-  #       type: boolean
   push:
     branches:
       - main
@@ -414,7 +398,7 @@ jobs:
         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
         echo "::set-output name=ECR_REPO::$ECR_REPO"
 
-    - name: Set NLB outputs
+    - name: Set NLB & ALB Controller outputs
       id: tf_outputs
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
@@ -455,8 +439,7 @@ jobs:
         sudo mv kubectl /usr/local/bin/
 
     - name: Install Helm
-      run: |
-        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
     - name: Update kubeconfig
       run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
@@ -464,9 +447,12 @@ jobs:
     # --------------------------
     # Install AWS Load Balancer Controller
     # --------------------------
-    - name: Install AWS LB Controller
+    - name: Create AWS LB Controller ServiceAccount
       run: |
         kubectl apply -f ${K8S_DIR}/service-account.yaml
+
+    - name: Install AWS LB Controller via Helm
+      run: |
         helm repo add eks https://aws.github.io/eks-charts
         helm repo update
         helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
@@ -474,23 +460,17 @@ jobs:
           --set clusterName=${{ needs.infra.outputs.EKS_CLUSTER }} \
           --set serviceAccount.create=false \
           --set serviceAccount.name=aws-load-balancer-controller \
-          --set serviceAccount.roleARN=${{ needs.infra.outputs.ALB_CONTROLLER_ROLE_ARN }}      
-
-    # - name: Wait for AWS LB Controller to be ready
-    #   run: |
-    #     kubectl rollout status deployment/aws-load-balancer-controller -n kube-system --timeout=180s
-
+          --set serviceAccount.roleARN=${{ needs.infra.outputs.ALB_CONTROLLER_ROLE_ARN }} \
+          --wait --timeout 5m
 
     - name: Check AWS LB Controller pods
-      run: |
-        kubectl get pods -n kube-system | grep aws-load-balancer-controller
+      run: kubectl get pods -n kube-system | grep aws-load-balancer-controller
 
     - name: Get AWS LB Controller logs
       run: |
         POD_NAME=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller -o jsonpath="{.items[0].metadata.name}")
         echo "Pod Name: $POD_NAME"
         kubectl logs $POD_NAME -n kube-system
-
 
     # --------------------------
     # Install ingress-nginx controller
