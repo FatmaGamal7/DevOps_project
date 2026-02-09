@@ -150,3 +150,11 @@ module "nlb" {
 
 
 
+resource "aws_security_group_rule" "nlb_to_nodes" {
+  type              = "ingress"
+  from_port         = 30080
+  to_port           = 30080
+  protocol          = "tcp"
+  security_group_id = aws_instance.nodes_sg.id
+  source_security_group_id = aws_lb.nlb.security_groups[0]  
+}
