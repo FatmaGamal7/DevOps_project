@@ -23,6 +23,10 @@ resource "aws_eks_node_group" "managed" {
   instance_types = ["t3.small"]
   capacity_type  = "ON_DEMAND"
 
+  remote_access {
+    source_security_group_ids = [aws_security_group.eks_nodes_sg.id]
+  }
+
   scaling_config {
     desired_size = 2
     min_size     = 1
@@ -30,6 +34,8 @@ resource "aws_eks_node_group" "managed" {
   }
 
   depends_on = [aws_eks_cluster.this]
+
+
 }
 
 # Fargate Profile
