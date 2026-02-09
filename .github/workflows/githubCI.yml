@@ -483,8 +483,8 @@ jobs:
 
     - name: validate awsLBC
       run:
-        kubectl get pods -n kube-system | grep aws-load-balancer-controller
-        POD_NAME=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller -o jsonpath="{.items[0].metadata.name}")
+        kubectl get pods -n kube-system \
+        POD_NAME=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller -o jsonpath="{.items[0].metadata.name}" \)
         kubectl logs $POD_NAME -n kube-system
 
 
