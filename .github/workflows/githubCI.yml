@@ -461,7 +461,7 @@ jobs:
           --set serviceAccount.create=false \
           --set serviceAccount.name=aws-load-balancer-controller \
           --set serviceAccount.roleARN=${{ needs.infra.outputs.ALB_CONTROLLER_ROLE_ARN }} \
-          --wait --timeout 5m
+          
 
     - name: Check AWS LB Controller pods
       run: kubectl get pods -n kube-system | grep aws-load-balancer-controller
