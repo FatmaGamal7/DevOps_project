@@ -1,3 +1,331 @@
+# name: CI/CD Pipeline
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       env:
+#         description: 'Environment'
+#         required: true
+#         default: 'prod'
+#         type: choice
+#         options:
+#           - nonprod
+#           - prod
+#       destroy:
+#         description: 'Destroy resources?'
+#         required: true
+#         default: false
+#         type: boolean
+#   push:
+#     branches:
+#       - main
+#   pull_request:
+#     branches:
+#       - main
+
+# env:
+#   AWS_REGION: us-east-1
+#   TERRAFORM_DIR: ./terraform
+#   HELM_CHART_DIR: ./helm
+#   APP_DIR: ./hello_app
+#   K8S_DIR: ./k8s
+
+# jobs:
+#   # ===============================
+#   # Stage 1️⃣: Infra (Terraform)
+#   # ===============================
+#   infra:
+#     name: Provision Infrastructure
+#     runs-on: ubuntu-latest
+
+#     outputs:
+#       EKS_CLUSTER: ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }}
+#       ECR_REPO: ${{ steps.set-ecr.outputs.ECR_REPO }}
+#       NLB_DNS: ${{ steps.tf_outputs.outputs.NLB_DNS }}
+#       NLB_ARN: ${{ steps.tf_outputs.outputs.NLB_ARN }}
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Configure AWS credentials
+#       uses: aws-actions/configure-aws-credentials@v4
+#       with:
+#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#         aws-region: ${{ env.AWS_REGION }}
+
+#     - name: Setup Terraform
+#       uses: hashicorp/setup-terraform@v2
+#       with:
+#         terraform_version: 1.5.7
+#         terraform_wrapper: false
+
+#     - name: Terraform Init
+#       working-directory: ${{ env.TERRAFORM_DIR }}
+#       run: terraform init -input=false
+
+#     - name: Terraform Apply
+#       working-directory: ${{ env.TERRAFORM_DIR }}
+#       run: terraform apply -auto-approve
+
+#     - name: Set ECR repo URL
+#       id: set-ecr
+#       working-directory: ${{ env.TERRAFORM_DIR }}
+#       run: |
+#         ECR_REPO=$(terraform output -raw repository_url | tr -d '\n')
+#         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+#         echo "::set-output name=ECR_REPO::$ECR_REPO"
+
+#     - name: Set EKS Cluster name
+#       id: set-eks-cluster
+#       working-directory: ${{ env.TERRAFORM_DIR }}
+#       run: |
+#         EKS_CLUSTER=$(terraform output -raw eks_cluster_name | tr -d '\n')
+#         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
+#         echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
+
+
+# ############
+#     - name: Get Terraform NLB outputs
+#       id: tf_outputs
+#       working-directory: ${{ env.TERRAFORM_DIR }}
+#       run: |
+#         NLB_ARN=$(terraform output -raw nlb_arn)
+#         NLB_DNS=$(terraform output -raw nlb_dns_name)
+#         echo "NLB_ARN=$NLB_ARN" >> $GITHUB_ENV
+#         echo "NLB_DNS=$NLB_DNS" >> $GITHUB_ENV
+#         echo "::set-output name=NLB_ARN::$NLB_ARN"
+#         echo "::set-output name=NLB_DNS::$NLB_DNS"
+# ###########3
+
+
+#   # ==================================
+#   # Stage 2️⃣: Platform Tools (Helm)
+#   # ==================================
+#   platform-tools:
+#     name: Install Platform Tools
+#     needs: infra
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Checkout repo
+#       uses: actions/checkout@v4
+
+#     - name: Configure AWS credentials
+#       uses: aws-actions/configure-aws-credentials@v4
+#       with:
+#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#         aws-region: ${{ env.AWS_REGION }}
+
+
+#     # Install kubectl
+#     - name: Install kubectl
+#       run: |
+#         K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
+#         curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
+#         chmod +x kubectl
+#         sudo mv kubectl /usr/local/bin/
+
+
+#     # Install Helm
+#     - name: Install Helm
+#       run: |
+#         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+
+#     # Update kubeconfig
+#     - name: Update kubeconfig
+#       run: |
+#         aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+
+#     # Install AWS LB controller controller
+#     - name: Install AWS LB controller controller
+#       run: |
+#         helm repo add eks https://aws.github.io/eks-charts
+#         helm repo update
+
+#         helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+#           -n kube-system \
+#           --set clusterName=${{ needs.infra.outputs.EKS_CLUSTER }} \
+#           --set serviceAccount.create=false \
+#           --set serviceAccount.name=aws-load-balancer-controller
+
+
+#     # Install ingress-nginx controller
+#     - name: Install ingress-nginx controller
+#       run: |
+#         helm uninstall ingress-nginx -n ingress-nginx
+#         kubectl delete ns ingress-nginx
+
+#         if kubectl get ns ingress-nginx >/dev/null 2>&1; then
+#           echo "ingress-nginx already exists"
+#         else
+#           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#           helm repo update
+
+#           helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+#             --namespace ingress-nginx --create-namespace \
+#             --set controller.service.type=NodePort \
+#             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
+#             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="arn:aws:elasticloadbalancing:us-east-1:174508894676:loadbalancer/net/my-nlb-prod/e8c86604baf7bb3b"\
+#             --set controller.service.externalTrafficPolicy=Local
+
+#           kubectl rollout status deployment/ingress-nginx-controller \
+#             -n ingress-nginx --timeout=120s
+#         fi
+
+
+
+#     # - name: Install ingress-nginx controller
+#     #   run: |
+#     #     helm uninstall ingress-nginx -n ingress-nginx
+#     #     kubectl delete ns ingress-nginx
+
+#     #     if kubectl get ns ingress-nginx >/dev/null 2>&1; then
+#     #       echo "ingress-nginx already exists"
+#     #     else
+#     #       helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#     #       helm repo update
+#     #       helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+#     #         --namespace ingress-nginx --create-namespace \
+#     #         --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
+#     #         --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="${{ needs.infra.outputs.NLB_ARN }}"
+
+#     #       kubectl rollout status deployment/ingress-nginx-controller \
+#     #         -n ingress-nginx --timeout=120s
+#     #     fi
+
+
+#     - name: Install Argo CD
+#       run: |
+#         set -e
+
+#         if kubectl get ns argocd >/dev/null 2>&1; then
+#           echo "Argo CD already installed"
+#         else
+#           helm repo add argo https://argoproj.github.io/argo-helm
+#           helm repo update
+
+#           helm upgrade --install argocd argo/argo-cd \
+#             --namespace argocd \
+#             --create-namespace \
+#             --set server.service.type=ClusterIP \
+#             --set server.ingress.enabled=true \
+#             --set server.ingress.ingressClassName=nginx
+#         fi
+
+
+
+#     - name: Verify platform tools
+#       run: |
+#         kubectl get pods -n ingress-nginx
+#         kubectl get pods -n argocd
+#         kubectl get svc -n argocd
+
+#   # ==================================
+#   # Stage 3️⃣: Application Deploy
+#   # ==================================
+#   deploy:
+#     name: Build & Deploy Application
+#     needs: [infra, platform-tools]
+#     runs-on: ubuntu-latest
+
+#     steps:    
+#     - name: Checkout repo
+#       uses: actions/checkout@v4
+
+#     - name: Configure AWS credentials
+#       uses: aws-actions/configure-aws-credentials@v4
+#       with:
+#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#         aws-region: ${{ env.AWS_REGION }}
+
+#     - name: Install kubectl
+#       run: |
+#         K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
+#         curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
+#         chmod +x kubectl
+#         sudo mv kubectl /usr/local/bin/
+#         aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+#         kubectl get nodes
+
+#     - name: Install Helm
+#       run: |
+#         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+#     # =========================
+#     # Docker Build & Push
+#     # =========================
+#     - name: Login to Amazon ECR
+#       run: |
+#         aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+#         | docker login --username AWS \
+#           --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+#     - name: Build Docker Image
+#       working-directory: ${{ env.APP_DIR }}
+#       run: |
+#         docker build -t ${{ needs.infra.outputs.ECR_REPO }}:latest .
+
+#     - name: Push Docker Image
+#       run: |
+#         docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
+
+#     # =========================
+#     # Helm Deploy
+#     # =========================
+#     - name: Deploy Helm chart
+#       run: |
+#         helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
+#           --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
+#           --set image.tag=latest
+
+#     - name: Verify Deployment
+#       run: |
+#         kubectl get pods
+#         kubectl get svc
+
+# #########
+# # access the app
+#     - name: Apply Ingress
+#       run: |
+#         kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
+
+#     - name: Wait for Ingress to be ready
+#       run: |
+#         kubectl wait --namespace ingress-nginx \
+#           --for=condition=available deployment/ingress-nginx-controller \
+#           --timeout=180s
+
+#     - name: Get Application URL
+#       run: |
+#         echo "Application URL:"
+#         echo "http://${{ needs.infra.outputs.NLB_DNS }}"
+
+
+
+#     # - name: Wait and Get Application URL
+#     #   run: |
+#     #     echo "Waiting for Application LoadBalancer..."
+#     #     for i in {1..30}; do
+#     #       HOSTNAME=$(kubectl get ingress hello-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+#     #       if [ -n "$HOSTNAME" ]; then
+#     #         echo "Application URL:"
+#     #         echo "http://$HOSTNAME"
+#     #         exit 0
+#     #       fi
+#     #       echo "Still waiting..."
+#     #       sleep 10
+#     #     done
+
+#     #     echo "Ingress LoadBalancer not ready after waiting"
+#     #     exit 1
+
+
+
 name: CI/CD Pipeline
 
 on:
@@ -32,7 +360,7 @@ env:
 
 jobs:
   # ===============================
-  # Stage 1️⃣: Infra (Terraform)
+  # Stage 1: Terraform Infra
   # ===============================
   infra:
     name: Provision Infrastructure
@@ -41,8 +369,9 @@ jobs:
     outputs:
       EKS_CLUSTER: ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }}
       ECR_REPO: ${{ steps.set-ecr.outputs.ECR_REPO }}
-      NLB_DNS: ${{ steps.tf_outputs.outputs.NLB_DNS }}
       NLB_ARN: ${{ steps.tf_outputs.outputs.NLB_ARN }}
+      NLB_DNS: ${{ steps.tf_outputs.outputs.NLB_DNS }}
+      ALB_CONTROLLER_ROLE_ARN: ${{ steps.tf_outputs.outputs.ALB_CONTROLLER_ROLE_ARN }}
 
     steps:
     - name: Checkout code
@@ -69,40 +398,39 @@ jobs:
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: terraform apply -auto-approve
 
-    - name: Set ECR repo URL
-      id: set-ecr
-      working-directory: ${{ env.TERRAFORM_DIR }}
-      run: |
-        ECR_REPO=$(terraform output -raw repository_url | tr -d '\n')
-        echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
-        echo "::set-output name=ECR_REPO::$ECR_REPO"
-
     - name: Set EKS Cluster name
       id: set-eks-cluster
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
-        EKS_CLUSTER=$(terraform output -raw eks_cluster_name | tr -d '\n')
+        EKS_CLUSTER=$(terraform output -raw eks_cluster_name)
         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
         echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
 
+    - name: Set ECR repo URL
+      id: set-ecr
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: |
+        ECR_REPO=$(terraform output -raw repository_url)
+        echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+        echo "::set-output name=ECR_REPO::$ECR_REPO"
 
-############
-    - name: Get Terraform NLB outputs
+    - name: Set NLB outputs
       id: tf_outputs
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
         NLB_ARN=$(terraform output -raw nlb_arn)
         NLB_DNS=$(terraform output -raw nlb_dns_name)
+        ALB_CONTROLLER_ROLE_ARN=$(terraform output -raw alb_controller_role_arn)
         echo "NLB_ARN=$NLB_ARN" >> $GITHUB_ENV
         echo "NLB_DNS=$NLB_DNS" >> $GITHUB_ENV
+        echo "ALB_CONTROLLER_ROLE_ARN=$ALB_CONTROLLER_ROLE_ARN" >> $GITHUB_ENV
         echo "::set-output name=NLB_ARN::$NLB_ARN"
         echo "::set-output name=NLB_DNS::$NLB_DNS"
-###########3
+        echo "::set-output name=ALB_CONTROLLER_ROLE_ARN::$ALB_CONTROLLER_ROLE_ARN"
 
-
-  # ==================================
-  # Stage 2️⃣: Platform Tools (Helm)
-  # ==================================
+  # ===============================
+  # Stage 2: Platform Tools (Helm)
+  # ===============================
   platform-tools:
     name: Install Platform Tools
     needs: infra
@@ -119,108 +447,72 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-
-    # Install kubectl
     - name: Install kubectl
       run: |
-        K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
+        K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
         curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
 
-
-    # Install Helm
     - name: Install Helm
       run: |
         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-
-    # Update kubeconfig
     - name: Update kubeconfig
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+
+    # --------------------------
+    # Install AWS Load Balancer Controller
+    # --------------------------
+    - name: Install AWS LB Controller
       run: |
-        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+        kubectl apply -f ${K8S_DIR}/aws-load-balancer-controller/service-account.yaml
+        helm repo add eks https://aws.github.io/eks-charts
+        helm repo update
+        helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+          -n kube-system \
+          --set clusterName=${{ needs.infra.outputs.EKS_CLUSTER }} \
+          --set serviceAccount.create=false \
+          --set serviceAccount.name=aws-load-balancer-controller \
+          --set serviceAccount.roleARN=${{ needs.infra.outputs.ALB_CONTROLLER_ROLE_ARN }}
 
-
+    # --------------------------
     # Install ingress-nginx controller
-    - name: Install ingress-nginx controller
+    # --------------------------
+    - name: Install ingress-nginx
       run: |
-        helm uninstall ingress-nginx -n ingress-nginx
-        kubectl delete ns ingress-nginx
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace \
+          --set controller.service.type=NodePort \
+          --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
+          --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="${{ needs.infra.outputs.NLB_ARN }}" \
+          --set controller.service.externalTrafficPolicy=Local
 
-        if kubectl get ns ingress-nginx >/dev/null 2>&1; then
-          echo "ingress-nginx already exists"
-        else
-          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-          helm repo update
-
-          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-            --namespace ingress-nginx --create-namespace \
-            --set controller.service.type=LoadBalancer \
-            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
-            --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="arn:aws:elasticloadbalancing:us-east-1:174508894676:loadbalancer/net/my-nlb-prod/e8c86604baf7bb3b"\
-            --set controller.service.externalTrafficPolicy=Local
-
-          kubectl rollout status deployment/ingress-nginx-controller \
-            -n ingress-nginx --timeout=120s
-        fi
-
-
-
-    # - name: Install ingress-nginx controller
-    #   run: |
-    #     helm uninstall ingress-nginx -n ingress-nginx
-    #     kubectl delete ns ingress-nginx
-
-    #     if kubectl get ns ingress-nginx >/dev/null 2>&1; then
-    #       echo "ingress-nginx already exists"
-    #     else
-    #       helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-    #       helm repo update
-    #       helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-    #         --namespace ingress-nginx --create-namespace \
-    #         --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
-    #         --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="${{ needs.infra.outputs.NLB_ARN }}"
-
-    #       kubectl rollout status deployment/ingress-nginx-controller \
-    #         -n ingress-nginx --timeout=120s
-    #     fi
-
-
+    # --------------------------
+    # Install Argo CD
+    # --------------------------
     - name: Install Argo CD
       run: |
-        set -e
+        helm repo add argo https://argoproj.github.io/argo-helm
+        helm repo update
+        helm upgrade --install argocd argo/argo-cd \
+          --namespace argocd \
+          --create-namespace \
+          --set server.service.type=ClusterIP \
+          --set server.ingress.enabled=true \
+          --set server.ingress.ingressClassName=nginx
 
-        if kubectl get ns argocd >/dev/null 2>&1; then
-          echo "Argo CD already installed"
-        else
-          helm repo add argo https://argoproj.github.io/argo-helm
-          helm repo update
-
-          helm upgrade --install argocd argo/argo-cd \
-            --namespace argocd \
-            --create-namespace \
-            --set server.service.type=ClusterIP \
-            --set server.ingress.enabled=true \
-            --set server.ingress.ingressClassName=nginx
-        fi
-
-
-
-    - name: Verify platform tools
-      run: |
-        kubectl get pods -n ingress-nginx
-        kubectl get pods -n argocd
-        kubectl get svc -n argocd
-
-  # ==================================
-  # Stage 3️⃣: Application Deploy
-  # ==================================
+  # ===============================
+  # Stage 3: Application Deploy
+  # ===============================
   deploy:
     name: Build & Deploy Application
     needs: [infra, platform-tools]
     runs-on: ubuntu-latest
 
-    steps:    
+    steps:
     - name: Checkout repo
       uses: actions/checkout@v4
 
@@ -233,20 +525,18 @@ jobs:
 
     - name: Install kubectl
       run: |
-        K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
+        K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
         curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
         aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
-        kubectl get nodes
 
     - name: Install Helm
-      run: |
-        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-    # =========================
+    # --------------------------
     # Docker Build & Push
-    # =========================
+    # --------------------------
     - name: Login to Amazon ECR
       run: |
         aws ecr get-login-password --region ${{ env.AWS_REGION }} \
@@ -255,59 +545,27 @@ jobs:
 
     - name: Build Docker Image
       working-directory: ${{ env.APP_DIR }}
-      run: |
-        docker build -t ${{ needs.infra.outputs.ECR_REPO }}:latest .
+      run: docker build -t ${{ needs.infra.outputs.ECR_REPO }}:latest .
 
     - name: Push Docker Image
-      run: |
-        docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
+      run: docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
 
-    # =========================
-    # Helm Deploy
-    # =========================
+    # --------------------------
+    # Helm Deploy Application
+    # --------------------------
     - name: Deploy Helm chart
       run: |
         helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
           --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
-          --set image.tag=latest
+          --set image.tag=latest \
+          --set aws.nlbName=${{ needs.infra.outputs.NLB_DNS }} \
+          --set aws.albControllerRoleArn=${{ needs.infra.outputs.ALB_CONTROLLER_ROLE_ARN }} \
+          --set ingress.enabled=true
 
     - name: Verify Deployment
       run: |
         kubectl get pods
         kubectl get svc
 
-#########
-# access the app
-    - name: Apply Ingress
-      run: |
-        kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
-
-    - name: Wait for Ingress to be ready
-      run: |
-        kubectl wait --namespace ingress-nginx \
-          --for=condition=available deployment/ingress-nginx-controller \
-          --timeout=180s
-
     - name: Get Application URL
-      run: |
-        echo "Application URL:"
-        echo "http://${{ needs.infra.outputs.NLB_DNS }}"
-
-
-
-    # - name: Wait and Get Application URL
-    #   run: |
-    #     echo "Waiting for Application LoadBalancer..."
-    #     for i in {1..30}; do
-    #       HOSTNAME=$(kubectl get ingress hello-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-    #       if [ -n "$HOSTNAME" ]; then
-    #         echo "Application URL:"
-    #         echo "http://$HOSTNAME"
-    #         exit 0
-    #       fi
-    #       echo "Still waiting..."
-    #       sleep 10
-    #     done
-
-    #     echo "Ingress LoadBalancer not ready after waiting"
-    #     exit 1
+      run: echo "http://${{ needs.infra.outputs.NLB_DNS }}"

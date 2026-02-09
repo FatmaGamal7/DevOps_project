@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: ""
+  repository: ""          # pipeline هيحطها
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -10,7 +10,11 @@ service:
   port: 80
 
 ingress:
-  enabled: false
+  enabled: true           # لازم true عشان ALB controller يقرأه
+  class: alb              # Ingress class
+  scheme: internet-facing
+  targetType: instance
 
-resources: {}
-
+aws:
+  nlbName: ""             # pipeline هيحط NLB موجود
+  albControllerRoleArn: "" # pipeline يحط ARN للServiceAccount
