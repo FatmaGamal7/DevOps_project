@@ -146,18 +146,19 @@ jobs:
       run: |
         helm uninstall ingress-nginx -n ingress-nginx
         kubectl delete ns ingress-nginx
-    
+
         if kubectl get ns ingress-nginx >/dev/null 2>&1; then
           echo "ingress-nginx already exists"
         else
           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
           helm repo update
+
           helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
             --namespace ingress-nginx --create-namespace \
             --set controller.service.type=LoadBalancer \
             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="${{ needs.infra.outputs.NLB_ARN }}"
-    
+
           kubectl rollout status deployment/ingress-nginx-controller \
             -n ingress-nginx --timeout=120s
         fi
