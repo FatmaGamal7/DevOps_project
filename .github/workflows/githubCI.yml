@@ -158,7 +158,7 @@ jobs:
             --set controller.service.type=LoadBalancer \
             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"="nlb" \
             --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-arn"="${{ needs.infra.outputs.NLB_ARN }}"
-
+            --set controller.service.externalTrafficPolicy=Local
 
           kubectl rollout status deployment/ingress-nginx-controller \
             -n ingress-nginx --timeout=120s

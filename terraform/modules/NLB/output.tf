@@ -13,3 +13,4 @@ output "listener_id" {
 output "listener_arn" {
   value = aws_lb_listener.nlb_listener.arn
 }
+
