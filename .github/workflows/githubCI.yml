@@ -252,14 +252,19 @@ jobs:
         with:
           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Configure kubectl
+      - name: Install kubectl
         run: |
+          K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
           aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
           kubectl get nodes
 
       - name: Apply Argo CD Application
         run: |
           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
+
 
 
         # run: |
