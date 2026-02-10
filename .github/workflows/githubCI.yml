@@ -497,6 +497,7 @@ jobs:
     - name: Check AWS LB Controller pods
       run: |
         kubectl get pods -n kube-system | grep aws-load-balancer-controller
+        kubectl get pods -n kube-system -w
 
 ###########
 ##############
