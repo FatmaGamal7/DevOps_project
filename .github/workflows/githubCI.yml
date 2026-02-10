@@ -293,7 +293,7 @@ jobs:
 
       - name: Deploy SonarQube via Helm
         run: |
-          helm upgrade --install sonarqube ./helm-platform/sonarqube \
+          helm upgrade --install sonarqube ./helm-platform \
             --namespace sonarqube --create-namespace
 
       - name: Wait for SonarQube LoadBalancer
