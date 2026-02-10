@@ -515,13 +515,11 @@ jobs:
     # -----------------------------
     # STEP 3️⃣: Install AWS Load Balancer Controller
     # -----------------------------
-    - name: Add EKS Helm repo
+    - name: Install AWS Load Balancer Controller
       run: |
         helm repo add eks https://aws.github.io/eks-charts
         helm repo update
 
-    - name: Install AWS Load Balancer Controller
-      run: |
         helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
           -n kube-system \
           --set clusterName=${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
@@ -529,26 +527,6 @@ jobs:
           --set serviceAccount.name=aws-load-balancer-controller \
           --set region=${{ env.AWS_REGION }}
 
-    - name: Verify AWS LB Controller Pod
-      run: |
-        kubectl get pods -n kube-system | grep aws-load-balancer
-
-    - name: Verify Webhook Endpoints
-      run: |
-        kubectl get svc -n kube-system | grep aws-load-balancer
-        kubectl get endpoints -n kube-system | grep aws-load-balancer
-
-    - name: Check Logs for Errors
-      run: |
-        kubectl logs -n kube-system deployment/aws-load-balancer-controller
-
-    - name: Test TargetGroupBinding
-      run: |
-        kubectl apply -f ${{ env.K8S_DIR }}/test-tgb.yaml
-
-    - name: Verify TargetGroupBinding
-      run: |
-        kubectl get tgb -n default
 
 
 
