@@ -493,7 +493,6 @@ jobs:
     - name: Create IAM Policy
       id: create_policy
       run: |
-        # لو البوليسي موجودة، نجيب ARN
         if aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy'].Arn" --output text | grep -q "arn:"; then
           POLICY_ARN=$(aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy'].Arn" --output text)
         else
@@ -508,15 +507,14 @@ jobs:
     - name: Create ServiceAccount + IAM Role (IRSA)
       run: |
         eksctl create iamserviceaccount \
-          --cluster ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
+          --cluster my-eks-cluster \
           --namespace kube-system \
           --name aws-load-balancer-controller \
           --attach-policy-arn ${{ steps.create_policy.outputs.arn }} \
           --approve \
           --override-existing-serviceaccounts
-
-        # تحقق من الخدمة
         kubectl get sa aws-load-balancer-controller -n kube-system -o yaml
+
 
     - name: Install AWS Load Balancer Controller
       run: |
