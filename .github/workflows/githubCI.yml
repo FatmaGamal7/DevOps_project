@@ -506,8 +506,7 @@ jobs:
           --cluster ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
           --namespace=kube-system \
           --name=aws-load-balancer-controller3 \
-          --attach-policy-arn=${{ steps.create_policy.outputs.arn }} \
-          --region=${{ env.AWS_REGION }} \
+          --attach-policy-arn ${{ steps.create_policy.outputs.arn }} \
           --approve \
           --override-existing-serviceaccounts
 
