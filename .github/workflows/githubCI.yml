@@ -468,6 +468,16 @@ jobs:
 
 
     # -----------------------------
+    # Install eksctl
+    # -----------------------------
+    - name: Install eksctl
+      run: |
+        curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+        sudo mv /tmp/eksctl /usr/local/bin
+        eksctl version
+
+
+    # -----------------------------
     # STEP 2️⃣: IAM Role + ServiceAccount (IRSA)
     # -----------------------------
     - name: Download AWS LB Controller IAM Policy
