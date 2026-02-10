@@ -261,3 +261,4 @@ jobs:
           git add helm/values.yaml
           git commit -m "Update image tag to $GITHUB_SHA"
           git push origin main
+
