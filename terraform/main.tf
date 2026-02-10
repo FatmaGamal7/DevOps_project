@@ -160,17 +160,23 @@ module "nlb" {
 
 
 #########
-module "OIDC" {
-  source = "./modules/OIDC"
-  cluster_name = module.EKS.cluster_name 
-  oidc_provider_url = module.EKS.eks_cluster_oidc_issuer
-}
+# module "OIDC" {
+#   source = "./modules/OIDC"
+#   cluster_name = module.EKS.cluster_name 
+#   oidc_provider_url = module.EKS.eks_cluster_oidc_issuer
+# }
 
 
-module "IRSA" {
-  source = "./modules/IRSA"
+# module "IRSA" {
+#   source = "./modules/IRSA"
 
-  env               = var.env
-  oidc_provider_arn = module.OIDC.oidc_provider_arn   # لو عندك module OIDC
-  oidc_provider_url = module.EKS.eks_cluster_oidc_issuer
-}
+#   env               = var.env
+#   oidc_provider_arn = module.OIDC.oidc_provider_arn
+#   oidc_provider_url = module.EKS.eks_cluster_oidc_issuer
+# }
+
+
+
+########
+####
+######

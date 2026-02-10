@@ -14,3 +14,6 @@ output "listener_arn" {
   value = aws_lb_listener.nlb_listener.arn
 }
 
+output "nlb_tg_arn" {
+  value = aws_lb_target_group.nlb_tg.arn
+}

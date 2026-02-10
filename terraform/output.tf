@@ -65,11 +65,13 @@ output "repository_url" {
 }
 ####################################
 
-output "alb_controller_role_arn" {
-  value = module.IRSA.alb_controller_role_arn
-}
+# output "alb_controller_role_arn" {
+#   value = module.IRSA.alb_controller_role_arn
+# }
 
 
-output "oidc_issuer_url" {
-  value = module.EKS.eks_cluster_oidc_issuer
-}
+# output "oidc_issuer_url" {
+#   value = module.EKS.eks_cluster_oidc_issuer
+# }
+
+

@@ -16,12 +16,12 @@ resource "aws_lb" "nlb" {
 
 resource "aws_lb_target_group" "nlb_tg" {
   name        = "nlb-tg-${var.env}"
-  port        = var.node_port
+  port        = 80
   protocol    = "TCP"
   vpc_id      = var.vpc_id
-  target_type = "instance"   
+  target_type = "ip"   
     health_check {
-    port     = "30080"
+    port     = "80"
     protocol = "TCP"
     interval = 10
     timeout  = 5
