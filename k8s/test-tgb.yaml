@@ -3,8 +3,9 @@ kind: TargetGroupBinding
 metadata:
   name: hello-app-tgb
 spec:
-  targetGroupARN: ${NLB_ARN}
-  targetType: ip
+  # الـ ARN بتاع التارجت جروب اللي الـ Terraform عمله للـ NLB
+  targetGroupARN: ${{ needs.infra.outputs.NLB_TARGET_GROUP_ARN }} 
+  targetType: ip # أو ip حسب إعدادات الـ TG في ترافورم
   serviceRef:
-    name: hello-app
+    name: hello-app # لازم يكون نفس اسم الـ Service اللي في Helm
     port: 80

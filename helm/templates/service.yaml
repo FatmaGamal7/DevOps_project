@@ -3,10 +3,11 @@ kind: Service
 metadata:
   name: {{ include "helm.fullname" . }}
 spec:
-  type: {{ .Values.service.type }}
-  selector:
-    {{- include "helm.selectorLabels" . | nindent 4 }}
+  type: ClusterIP
   ports:
-    - port: {{ .Values.service.port }}
+    - port: 80
       targetPort: 80
       protocol: TCP
+      name: http
+  selector:
+    {{- include "helm.selectorLabels" . | nindent 4 }}

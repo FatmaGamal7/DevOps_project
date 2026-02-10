@@ -497,7 +497,54 @@ jobs:
     - name: Check AWS LB Controller pods
       run: |
         kubectl get pods -n kube-system | grep aws-load-balancer-controller
-        kubectl get pods -n kube-system -w
+      # kubectl get pods -n kube-system -w
+
+# ==================================
+  # Stage 3: Build & Deploy Application
+  # ==================================
+  deploy:
+    name: Build & Deploy Application
+    needs: [infra, platform-tools]
+    runs-on: ubuntu-latest
+    steps:    
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+    - name: Build & Push Docker Image
+      run: |
+        docker build -t ${{ needs.infra.outputs.ECR_REPO }}:latest ${{ env.APP_DIR }}
+        docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
+
+    - name: Deploy Helm chart
+      run: |
+        helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
+          --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
+          --set image.tag=latest
+
+    # الخطوة السحرية: ربط الـ Service بالـ NLB Target Group
+    - name: Apply TargetGroupBinding
+      run: |
+        # هنستخدم envsubst لو عاوزة تبدلي الـ ARN ديناميكياً أو نعدله في الملف مباشرة
+        kubectl apply -f ${{ env.K8S_DIR }}/test-tgb.yaml
+
+    - name: Verify Connection
+      run: |
+        kubectl get targetgroupbinding
+        kubectl describe targetgroupbinding hello-app-tgb
 
 ###########
 ##############
