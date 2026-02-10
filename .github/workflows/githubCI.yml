@@ -245,31 +245,22 @@ jobs:
   cd:
     name: Continuous Deployment via Argo CD
     runs-on: ubuntu-latest
-    needs: deploy  
+    needs: deploy
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          # repository: FatmaGamal7/DevOps_project.git
           token: ${{ secrets.GIT_TOKEN }}
 
-
-      - name: Configure Git
+      - name: Configure kubectl
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-
-      - name: Update Helm values with new image tag
-        run: |
-          sed -i "s/tag:.*/tag: $GITHUB_SHA/" helm/values.yaml
-
-      # - name: Commit & Push changes to Git
-      #   env:
-      #     GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+          kubectl get nodes
 
       - name: Apply Argo CD Application
         run: |
           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
+
 
         # run: |
         #   git add helm/values.yaml
