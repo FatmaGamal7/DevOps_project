@@ -477,35 +477,40 @@ jobs:
         eksctl version
 
 
-    # -----------------------------
-    # STEP 2️⃣: IAM Role + ServiceAccount (IRSA)
-    # -----------------------------
+# -----------------------------
+# STEP 2️⃣: IAM Role + ServiceAccount (IRSA)
+# -----------------------------
     - name: Download AWS LB Controller IAM Policy
       run: |
         curl -o iam_policy.json \
           https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
 
-
     - name: Create IAM Policy
       id: create_policy
       run: |
-        POLICY_ARN=$(aws iam create-policy \
-          --policy-name AWSLoadBalancerControllerIAMPolicy2 \
-          --policy-document file://iam_policy.json \
-          --query 'Policy.Arn' --output text)
+        if aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy2'].Arn" --output text | grep -q "arn:"; then
+          POLICY_ARN=$(aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy2'].Arn" --output text)
+        else
+          POLICY_ARN=$(aws iam create-policy \
+            --policy-name AWSLoadBalancerControllerIAMPolicy2 \
+            --policy-document file://iam_policy.json \
+            --query 'Policy.Arn' --output text)
+        fi
+
         echo "POLICY_ARN=$POLICY_ARN" >> $GITHUB_ENV
         echo "::set-output name=arn::$POLICY_ARN"
 
     - name: Create ServiceAccount + IAM Role (IRSA)
       run: |
         eksctl create iamserviceaccount \
+          --name aws-load-balancer-controller2 \
+          --namespace kube-system \
           --cluster ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
           --region ${{ env.AWS_REGION }} \
-          --namespace kube-system \
-          --name aws-load-balancer-controller2 \
           --attach-policy-arn ${{ steps.create_policy.outputs.arn }} \
           --approve \
           --override-existing-serviceaccounts
+
 
     # -----------------------------
     # STEP 3️⃣: Install AWS Load Balancer Controller
