@@ -327,7 +327,6 @@
 
 #############################################
 
-
 name: CI/CD Pipeline
 
 on:
@@ -349,13 +348,9 @@ jobs:
   infra:
     name: Provision Infrastructure
     runs-on: ubuntu-latest
-
     outputs:
       EKS_CLUSTER: ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }}
       ECR_REPO: ${{ steps.set-ecr.outputs.ECR_REPO }}
-      # NLB_ARN: ${{ steps.tf_outputs.outputs.NLB_ARN }}
-      # NLB_DNS: ${{ steps.tf_outputs.outputs.NLB_DNS }}
-      # ALB_CONTROLLER_ROLE_ARN: ${{ steps.tf_outputs.outputs.ALB_CONTROLLER_ROLE_ARN }}
 
     steps:
     - name: Checkout code
@@ -367,16 +362,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-
-    # -----------------------------
-    # Install eksctl
-    # -----------------------------
-    - name: Install eksctl
-      run: |
-        curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-        sudo mv /tmp/eksctl /usr/local/bin
-        eksctl version
-
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
@@ -392,6 +377,7 @@ jobs:
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: terraform apply -auto-approve
 
+    # مهم جداً: استخراج اسم الكلاستر وحفظه في Output
     - name: Set EKS Cluster name
       id: set-eks-cluster
       working-directory: ${{ env.TERRAFORM_DIR }}
@@ -408,31 +394,8 @@ jobs:
         echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
         echo "::set-output name=ECR_REPO::$ECR_REPO"
 
-
-    # -----------------------------
-    # ** Associate OIDC Provider
-    # -----------------------------
-    - name: Associate IAM OIDC Provider
-      run: |
-        eksctl utils associate-iam-oidc-provider \
-          --region ${{ env.AWS_REGION }} \
-          --cluster my-eks-cluster \
-          --approve
-
-
-    - name: Set NLB & ALB Controller outputs
-      id: tf_outputs
-      working-directory: ${{ env.TERRAFORM_DIR }}
-      run: |
-        NLB_ARN=$(terraform output -raw nlb_arn)
-        NLB_DNS=$(terraform output -raw nlb_dns_name)
-        echo "NLB_ARN=$NLB_ARN" >> $GITHUB_ENV
-        echo "NLB_DNS=$NLB_DNS" >> $GITHUB_ENV
-        echo "::set-output name=NLB_ARN::$NLB_ARN"
-        echo "::set-output name=NLB_DNS::$NLB_DNS"
-
   # ===============================
-  # Stage 2: Platform Tools (Helm)
+  # Stage 2: Platform Tools (Helm + IAM)
   # ===============================
   platform-tools:
     name: Install Platform Tools
@@ -450,6 +413,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    # تثبيت الأدوات اللازمة
     - name: Install kubectl
       run: |
         K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
@@ -460,31 +424,29 @@ jobs:
     - name: Install Helm
       run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-    - name: Update kubeconfig
-      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
-
-#########
-##########
-
-
-    # -----------------------------
-    # Install eksctl
-    # -----------------------------
     - name: Install eksctl
       run: |
         curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
         sudo mv /tmp/eksctl /usr/local/bin
         eksctl version
 
+    # تحديث الـ Kubeconfig باستخدام الاسم الديناميكي
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
 
     # -----------------------------
-    # STEP 2️⃣: IAM Role + ServiceAccount (IRSA)
+    # STEP 1: Associate OIDC Provider
     # -----------------------------
-    - name: Download AWS LB Controller IAM Policy
+    - name: Associate IAM OIDC Provider
       run: |
-        curl -o iam_policy.json \
-          https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
+        eksctl utils associate-iam-oidc-provider \
+          --region ${{ env.AWS_REGION }} \
+          --cluster ${{ needs.infra.outputs.EKS_CLUSTER }} \
+          --approve
 
+    # -----------------------------
+    # STEP 2: IAM Policy
+    # -----------------------------
     - name: Download AWS LB Controller IAM Policy
       run: |
         curl -o iam_policy.json \
@@ -501,21 +463,24 @@ jobs:
             --policy-document file://iam_policy.json \
             --query 'Policy.Arn' --output text)
         fi
-        echo "POLICY_ARN=$POLICY_ARN" >> $GITHUB_ENV
         echo "::set-output name=arn::$POLICY_ARN"
 
+    # -----------------------------
+    # STEP 3: ServiceAccount (IRSA)
+    # -----------------------------
     - name: Create ServiceAccount + IAM Role (IRSA)
       run: |
         eksctl create iamserviceaccount \
-          --cluster my-eks-cluster \
+          --cluster ${{ needs.infra.outputs.EKS_CLUSTER }} \
           --namespace kube-system \
           --name aws-load-balancer-controller \
           --attach-policy-arn ${{ steps.create_policy.outputs.arn }} \
           --approve \
           --override-existing-serviceaccounts
-        kubectl get sa aws-load-balancer-controller -n kube-system -o yaml
 
-
+    # -----------------------------
+    # STEP 4: Install AWS LB Controller (Fixing the Crash)
+    # -----------------------------
     - name: Install AWS Load Balancer Controller
       run: |
         helm repo add eks https://aws.github.io/eks-charts
@@ -523,22 +488,15 @@ jobs:
 
         helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
           -n kube-system \
-          --set clusterName=my-eks-cluster \
+          --set clusterName=${{ needs.infra.outputs.EKS_CLUSTER }} \
           --set serviceAccount.create=false \
-          --set serviceAccount.name=aws-load-balancer-controller
+          --set serviceAccount.name=aws-load-balancer-controller \
+          --set region=${{ env.AWS_REGION }} \
+          --set vpcId=$(aws eks describe-cluster --name ${{ needs.infra.outputs.EKS_CLUSTER }} --query "cluster.resourcesVpcConfig.vpcId" --output text)
 
     - name: Check AWS LB Controller pods
       run: |
         kubectl get pods -n kube-system | grep aws-load-balancer-controller
-
-    - name: Get AWS LB Controller logs
-      run: |
-        POD_NAME=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller -o jsonpath="{.items[0].metadata.name}")
-        echo "Pod Name: $POD_NAME"
-        kubectl logs $POD_NAME -n kube-system
-
-
-
 
 ###########
 ##############
