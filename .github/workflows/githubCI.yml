@@ -204,6 +204,7 @@ jobs:
         helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
           --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
           --set image.tag=latest
+
     - name: Verify Deployment
       run: |
         kubectl get pods
@@ -212,13 +213,20 @@ jobs:
 # access the app
     - name: Apply Ingress
       run: |
-        kubectl delete ingress hello-app
-        kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
+        if kubectl get ingress hello-app -n default >/dev/null 2>&1; then
+          echo "Ingress hello-app already exists, patching with kubectl apply..."
+          kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
+        else
+          echo "Ingress hello-app does not exist, creating..."
+          kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
+        fi
+
     - name: Wait for Ingress to be ready
       run: |
         kubectl wait --namespace ingress-nginx \
           --for=condition=available deployment/ingress-nginx-controller \
           --timeout=180s
+
     - name: Wait and Get Application URL
       run: |
         echo "Waiting for Application LoadBalancer..."
