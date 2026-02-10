@@ -479,7 +479,6 @@ jobs:
           --approve
         kubectl get sa aws-load-balancer-controller -n kube-system -o yaml
 
-      run: |
         helm uninstall aws-load-balancer-controller -n kube-system
         kubectl delete mutatingwebhookconfiguration elbv2.k8s.aws-mutating-webhook-configuration
         kubectl delete validatingwebhookconfiguration elbv2.k8s.aws-validating-webhook-configuration
