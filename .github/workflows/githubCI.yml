@@ -396,9 +396,9 @@ jobs:
       id: set-eks-cluster
       working-directory: ${{ env.TERRAFORM_DIR }}
       run: |
-        EKS_CLUSTER=$(terraform output -raw eks_cluster_name | tr -d '\n')
+        EKS_CLUSTER=$(terraform output -raw eks_cluster_name)
         echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_ENV
-        echo "EKS_CLUSTER=$EKS_CLUSTER" >> $GITHUB_OUTPUT
+        echo "::set-output name=EKS_CLUSTER::$EKS_CLUSTER"
 
     - name: Set ECR repo URL
       id: set-ecr
