@@ -264,8 +264,13 @@ jobs:
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
 
+            - name: Apply Argo CD Application
+
         run: |
-          git add helm/values.yaml
-          git commit -m "Update image tag to $GITHUB_SHA"
-          git push https://$GIT_TOKEN@github.com/FatmaGamal7/DevOps_project.git HEAD:main
+          kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
+
+        # run: |
+        #   git add helm/values.yaml
+        #   git commit -m "Update image tag to $GITHUB_SHA"
+        #   git push https://$GIT_TOKEN@github.com/FatmaGamal7/DevOps_project.git HEAD:main
 
