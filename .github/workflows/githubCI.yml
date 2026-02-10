@@ -144,6 +144,7 @@ jobs:
             --set server.ingress.enabled=true \
             --set server.ingress.ingressClassName=nginx
         fi
+
     - name: Verify platform tools
       run: |
         kubectl get pods -n ingress-nginx
@@ -233,3 +234,30 @@ jobs:
         done
         echo "Ingress LoadBalancer not ready after waiting"
         exit 1
+
+
+  # =========================
+  # Stage 4️⃣: Continuous Deployment (CD)
+  # =========================
+  cd:
+    name: Continuous Deployment via Argo CD
+    runs-on: ubuntu-latest
+    needs: deploy  
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+      - name: Update Helm values with new image tag
+        run: |
+          sed -i "s/tag:.*/tag: $GITHUB_SHA/" helm/values.yaml
+
+      - name: Commit & Push changes to Git
+        run: |
+          git add helm/values.yaml
+          git commit -m "Update image tag to $GITHUB_SHA"
+          git push origin main
