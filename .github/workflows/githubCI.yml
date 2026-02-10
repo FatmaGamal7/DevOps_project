@@ -503,7 +503,7 @@ jobs:
     - name: Create ServiceAccount + IAM Role (IRSA)
       run: |
         eksctl create iamserviceaccount \
-          --cluster =${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
+          --cluster ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
           --namespace=kube-system \
           --name=aws-load-balancer-controller3 \
           --attach-policy-arn=${{ steps.create_policy.outputs.arn }} \
