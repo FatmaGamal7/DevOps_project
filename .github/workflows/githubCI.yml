@@ -488,7 +488,7 @@ jobs:
     - name: Create IAM Policy
       run: |
         POLICY_ARN=$(aws iam create-policy \
-          --policy-name AWSLoadBalancerControllerIAMPolicy \
+          --policy-name AWSLoadBalancerControllerIAMPolicy1 \
           --policy-document file://iam_policy.json \
           --query 'Policy.Arn' --output text)
         echo "POLICY_ARN=$POLICY_ARN" >> $GITHUB_ENV
