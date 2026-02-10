@@ -264,8 +264,7 @@ jobs:
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
 
-            - name: Apply Argo CD Application
-
+      - name: Apply Argo CD Application
         run: |
           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
 
