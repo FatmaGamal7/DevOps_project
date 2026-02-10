@@ -213,7 +213,7 @@ jobs:
 # access the app
     - name: Apply Ingress
       run: |
-        kubectl delete ingress hello-app-ingress -n default
+        kubectl delete ingress hello-app
         kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
 
     - name: Wait for Ingress to be ready
