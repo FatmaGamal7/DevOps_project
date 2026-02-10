@@ -26,28 +26,28 @@ output "nat_eip" {
   value       = module.nat.nat_eip
 }
 
-# ###############
-# # EKS
-# output "eks_cluster_name" {
-#   description = "EKS cluster name"
-#   value       = module.EKS.cluster_name
-# }
+###############
+# EKS
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = module.EKS.cluster_name
+}
 
-# output "eks_cluster_arn" {
-#   description = "EKS cluster ARN"
-#   value       = module.EKS.cluster_arn
-# }
+output "eks_cluster_arn" {
+  description = "EKS cluster ARN"
+  value       = module.EKS.cluster_arn
+}
 
-# # IAM (EKS)
-# output "eks_cluster_role_arn" {
-#   description = "IAM role ARN for EKS cluster"
-#   value       = module.IAM.cluster_role_arn
-# }
+# IAM (EKS)
+output "eks_cluster_role_arn" {
+  description = "IAM role ARN for EKS cluster"
+  value       = module.IAM.cluster_role_arn
+}
 
-# output "eks_node_role_arn" {
-#   description = "IAM role ARN for EKS managed node group"
-#   value       = module.IAM.node_role_arn
-# }
+output "eks_node_role_arn" {
+  description = "IAM role ARN for EKS managed node group"
+  value       = module.IAM.node_role_arn
+}
 
 
 ###########
