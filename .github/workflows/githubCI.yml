@@ -503,13 +503,14 @@ jobs:
     - name: Create ServiceAccount + IAM Role (IRSA)
       run: |
         eksctl create iamserviceaccount \
-          --name aws-load-balancer-controller2 \
+          --cluster "${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }}" \
           --namespace kube-system \
-          --cluster ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
-          --region ${{ env.AWS_REGION }} \
-          --attach-policy-arn ${{ steps.create_policy.outputs.arn }} \
+          --name aws-load-balancer-controller2 \
+          --attach-policy-arn "${{ steps.create_policy.outputs.arn }}" \
+          --region "${{ env.AWS_REGION }}" \
           --approve \
           --override-existing-serviceaccounts
+
 
 
     # -----------------------------
