@@ -488,14 +488,10 @@ jobs:
     - name: Create IAM Policy
       id: create_policy
       run: |
-        if aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy'].Arn" --output text | grep -q "arn:"; then
-          POLICY_ARN=$(aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy'].Arn" --output text)
-        else
-          POLICY_ARN=$(aws iam create-policy \
-            --policy-name AWSLoadBalancerControllerIAMPolicy \
-            --policy-document file://iam_policy.json \
-            --query 'Policy.Arn' --output text)
-        fi
+        POLICY_ARN=$(aws iam create-policy \
+          --policy-name AWSLoadBalancerControllerIAMPolicy \
+          --policy-document file://iam_policy.json \
+          --query 'Policy.Arn' --output text)
         echo "POLICY_ARN=$POLICY_ARN" >> $GITHUB_ENV
         echo "::set-output name=arn::$POLICY_ARN"
 
@@ -510,7 +506,6 @@ jobs:
           --override-existing-serviceaccounts
 
         kubectl get sa aws-load-balancer-controller -n kube-system -o yaml
-
 
     # -----------------------------
     # STEP 3️⃣: Install AWS Load Balancer Controller
