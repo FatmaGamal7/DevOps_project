@@ -488,11 +488,11 @@ jobs:
     - name: Create IAM Policy
       id: create_policy
       run: |
-        if aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy2'].Arn" --output text | grep -q "arn:"; then
-          POLICY_ARN=$(aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy2'].Arn" --output text)
+        if aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy3'].Arn" --output text | grep -q "arn:"; then
+          POLICY_ARN=$(aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy3'].Arn" --output text)
         else
           POLICY_ARN=$(aws iam create-policy \
-            --policy-name AWSLoadBalancerControllerIAMPolicy2 \
+            --policy-name AWSLoadBalancerControllerIAMPolicy3 \
             --policy-document file://iam_policy.json \
             --query 'Policy.Arn' --output text)
         fi
@@ -505,7 +505,7 @@ jobs:
         eksctl create iamserviceaccount \
           --cluster ${{ steps.set-eks-cluster.outputs.EKS_CLUSTER }} \
           --namespace kube-system \
-          --name aws-load-balancer-controller2 \
+          --name aws-load-balancer-controller3 \
           --attach-policy-arn ${{ steps.create_policy.outputs.arn }} \
           --region "${{ env.AWS_REGION }}" \
           --approve \
