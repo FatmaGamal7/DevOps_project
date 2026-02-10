@@ -1,0 +1,14 @@
+{
+  "name": "fatma-app",
+  "version": "1.0.0",
+  "description": "Node.js app with MongoDB Atlas + SSM",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongodb": "^5.7.0",
+    "aws-sdk": "^2.1580.0"
+  }
+}
