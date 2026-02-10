@@ -10,11 +10,11 @@ service:
   port: 80
 
 ingress:
-  enabled: true           # لازم true عشان ALB controller يقرأه
+  enabled: false           # لازم true عشان ALB controller يقرأه
   class: alb              # Ingress class
   scheme: internet-facing
   targetType: instance
 
 aws:
-  nlbName: ""             # pipeline هيحط NLB موجود
+  nlbName: ""             
   albControllerRoleArn: "" # pipeline يحط ARN للServiceAccount

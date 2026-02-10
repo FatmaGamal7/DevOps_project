@@ -1,22 +1,22 @@
-{{- if .Values.ingress.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ include "helm.fullname" . }}
-  annotations:
-    kubernetes.io/ingress.class: {{ .Values.ingress.class }}
-    alb.ingress.kubernetes.io/load-balancer-name: {{ .Values.aws.nlbName }}
-    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme }}
-    alb.ingress.kubernetes.io/target-type: {{ .Values.ingress.targetType }}
-spec:
-  rules:
-    - http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "helm.fullname" . }}
-                port:
-                  number: {{ .Values.service.port }}
-{{- end }}
+# {{- if .Values.ingress.enabled }}
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: {{ include "helm.fullname" . }}
+#   annotations:
+#     kubernetes.io/ingress.class: {{ .Values.ingress.class }}
+#     alb.ingress.kubernetes.io/load-balancer-name: {{ .Values.aws.nlbName }}
+#     alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme }}
+#     alb.ingress.kubernetes.io/target-type: {{ .Values.ingress.targetType }}
+# spec:
+#   rules:
+#     - http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: {{ include "helm.fullname" . }}
+#                 port:
+#                   number: {{ .Values.service.port }}
+# {{- end }}

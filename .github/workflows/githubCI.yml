@@ -529,22 +529,35 @@ jobs:
         docker build -t ${{ needs.infra.outputs.ECR_REPO }}:latest ${{ env.APP_DIR }}
         docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
 
+    # --------------------------
+    # Helm Deploy Application
+    # --------------------------
     - name: Deploy Helm chart
       run: |
         helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
           --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
-          --set image.tag=latest
+          --set image.tag=latest \
+          --set ingress.enabled=false
 
-    # الخطوة السحرية: ربط الـ Service بالـ NLB Target Group
+    # --------------------------
+    # Bind Service to existing NLB
+    # --------------------------
     - name: Apply TargetGroupBinding
       run: |
-        # هنستخدم envsubst لو عاوزة تبدلي الـ ARN ديناميكياً أو نعدله في الملف مباشرة
-        kubectl apply -f ${{ env.K8S_DIR }}/test-tgb.yaml
+        envsubst < k8s/test-tgb.yaml | kubectl apply -f -
 
-    - name: Verify Connection
+    - name: Verify Deployment
       run: |
+        kubectl get pods
+        kubectl get svc
         kubectl get targetgroupbinding
-        kubectl describe targetgroupbinding hello-app-tgb
+
+    - name: Get Application URL
+      run: |
+        echo "http://${{ needs.infra.outputs.NLB_DNS }}"
+
+
+
 
 ###########
 ##############

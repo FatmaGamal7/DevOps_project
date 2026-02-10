@@ -19,8 +19,9 @@ resource "aws_lb_target_group" "nlb_tg" {
   port        = 80
   protocol    = "TCP"
   vpc_id      = var.vpc_id
-  target_type = "ip"   
-    health_check {
+  target_type = "ip" 
+
+  health_check {
     port     = "80"
     protocol = "TCP"
     interval = 10

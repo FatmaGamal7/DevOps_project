@@ -2,10 +2,10 @@ apiVersion: elbv2.k8s.aws/v1beta1
 kind: TargetGroupBinding
 metadata:
   name: hello-app-tgb
+  namespace: default
 spec:
-  # الـ ARN بتاع التارجت جروب اللي الـ Terraform عمله للـ NLB
-  targetGroupARN: ${{ needs.infra.outputs.NLB_TARGET_GROUP_ARN }} 
-  targetType: ip # أو ip حسب إعدادات الـ TG في ترافورم
+  targetGroupARN: arn:aws:elasticloadbalancing:us-east-1:174508894676:targetgroup/nlb-tg-prod/622a3239db4896bb
+  targetType: ip
   serviceRef:
-    name: hello-app # لازم يكون نفس اسم الـ Service اللي في Helm
+    name: hello-app
     port: 80
