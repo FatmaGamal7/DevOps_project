@@ -238,8 +238,7 @@ jobs:
         echo "Ingress LoadBalancer not ready after waiting"
         exit 1
 
-
-  # =========================
+# =========================
   # Stage 4️⃣: Continuous Deployment (CD)
   # =========================
   cd:
@@ -266,18 +265,18 @@ jobs:
         run: |
           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
 
-
-# =========================
-# Stage 5️⃣: SonarQube Deploy & Scan
-# =========================
+  # =========================
+  # Stage 5️⃣: SonarQube Deploy & Scan
+  # =========================
   sonar:
     name: Deploy & Run SonarQube Scan
     runs-on: ubuntu-latest
     needs: [infra, deploy]
+    steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Configure kubectl
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -301,9 +300,10 @@ jobs:
         run: |
           echo "Waiting for SonarQube LoadBalancer..."
           for i in {1..30}; do
-            SONAR_URL=$(kubectl get svc sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            SONAR_URL=$(kubectl get svc sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
             if [ -n "$SONAR_URL" ]; then
               echo "SONAR_URL=http://$SONAR_URL:9000" >> $GITHUB_ENV
+              echo "Found URL: $SONAR_URL"
               break
             fi
             echo "Still waiting..."
@@ -314,7 +314,7 @@ jobs:
         run: |
           curl -Lo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.9.2.731.zip
           unzip sonar-scanner.zip
-          export PATH=$PWD/sonar-scanner-4.9.2.731/bin:$PATH
+          echo "$PWD/sonar-scanner-4.9.2.731/bin" >> $GITHUB_PATH
 
       - name: Run SonarQube Analysis
         env:
