@@ -260,9 +260,9 @@ jobs:
         run: |
           sed -i "s/tag:.*/tag: $GITHUB_SHA/" helm/values.yaml
 
-      - name: Commit & Push changes to Git
-        env:
-          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+      # - name: Commit & Push changes to Git
+      #   env:
+      #     GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
 
       - name: Apply Argo CD Application
         run: |
