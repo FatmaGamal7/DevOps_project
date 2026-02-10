@@ -209,6 +209,7 @@ jobs:
       run: |
         kubectl get pods
         kubectl get svc
+
 #########
 # access the app
     - name: Apply Ingress
