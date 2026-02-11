@@ -319,6 +319,24 @@ jobs:
         run: |
           echo "SonarQube analysis is finished and project created automatically!"
 
+      ########
+
+      - name: Monitor Cluster with Datadog
+        env:
+          DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          CLUSTER_NAME: ${{ needs.infra.outputs.EKS_CLUSTER }}
+        run: |
+          # 1. تثبيت الـ Operator (العقل المدبر)
+          helm repo add datadog https://helm.datadoghq.com
+          helm repo update
+          helm upgrade --install datadog-operator datadog/datadog-operator --namespace datadog --create-namespace --wait
+
+          kubectl create secret generic datadog-secret \
+            --from-literal api-key=$DD_API_KEY \
+            --namespace datadog --dry-run=client -o yaml | kubectl apply -f -
+
+          envsubst < k8s/datadog-agent.yaml | kubectl apply -n datadog -f -
+
 
 
 
