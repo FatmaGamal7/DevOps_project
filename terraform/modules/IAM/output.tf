@@ -12,3 +12,4 @@ output "fargate_role_arn" {
   description = "EKS Fargate Pod Execution Role ARN"
   value       = aws_iam_role.fargate.arn
 }
+
