@@ -20,8 +20,10 @@ resource "aws_eks_node_group" "managed" {
   node_role_arn   = var.iam_module.node_role_arn
   subnet_ids      = var.private_subnet_ids
 
-  instance_types = ["t3.small"]
+  # instance_types = ["t3.small"]
+  instance_types = ["c7i-flex.large"]
   capacity_type  = "ON_DEMAND"
+  
 
   scaling_config {
     desired_size = 2

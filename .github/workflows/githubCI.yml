@@ -284,7 +284,6 @@ jobs:
       - name: Wait for SonarQube LoadBalancer
         run: |
           echo "Waiting for SonarQube LoadBalancer..."
-          # لاحظي اسم السيرفس هنا: sonarqube-sonarqube
           for i in {1..50}; do
             SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
             if [ -n "$SONAR_HOST" ]; then
