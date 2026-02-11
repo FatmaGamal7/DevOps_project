@@ -196,74 +196,74 @@ jobs:
       run: |
         docker push ${{ needs.infra.outputs.ECR_REPO }}:latest
 
-    # =========================
-    # Helm Deploy
-    # =========================
-    - name: Deploy Helm chart
-      run: |
-        helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
-          --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
-          --set image.tag=latest
+#     # =========================
+#     # Helm Deploy
+#     # =========================
+#     - name: Deploy Helm chart
+#       run: |
+#         helm upgrade --install hello-app ${{ env.HELM_CHART_DIR }} \
+#           --set image.repository=${{ needs.infra.outputs.ECR_REPO }} \
+#           --set image.tag=latest
 
-    - name: Verify Deployment
-      run: |
-        kubectl get pods
-        kubectl get svc
-#########
-# access the app
-    - name: Apply Ingress
-      run: |
-        kubectl delete ingress hello-app --ignore-not-found
-        kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
+#     - name: Verify Deployment
+#       run: |
+#         kubectl get pods
+#         kubectl get svc
+# #########
+# # access the app
+#     - name: Apply Ingress
+#       run: |
+#         kubectl delete ingress hello-app --ignore-not-found
+#         kubectl apply -f ${{ env.K8S_DIR }}/hello-ingress.yaml
 
-    - name: Wait for Ingress to be ready
-      run: |
-        kubectl wait --namespace ingress-nginx \
-          --for=condition=available deployment/ingress-nginx-controller \
-          --timeout=180s
+#     - name: Wait for Ingress to be ready
+#       run: |
+#         kubectl wait --namespace ingress-nginx \
+#           --for=condition=available deployment/ingress-nginx-controller \
+#           --timeout=180s
 
-    - name: Wait and Get Application URL
-      run: |
-        echo "Waiting for Application LoadBalancer..."
-        for i in {1..30}; do
-          HOSTNAME=$(kubectl get ingress hello-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          if [ -n "$HOSTNAME" ]; then
-            echo "Application URL:"
-            echo "http://$HOSTNAME"
-            exit 0
-          fi
-          echo "Still waiting..."
-          sleep 10
-        done
-        echo "Ingress LoadBalancer not ready after waiting"
-        exit 1
+#     - name: Wait and Get Application URL
+#       run: |
+#         echo "Waiting for Application LoadBalancer..."
+#         for i in {1..30}; do
+#           HOSTNAME=$(kubectl get ingress hello-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+#           if [ -n "$HOSTNAME" ]; then
+#             echo "Application URL:"
+#             echo "http://$HOSTNAME"
+#             exit 0
+#           fi
+#           echo "Still waiting..."
+#           sleep 10
+#         done
+#         echo "Ingress LoadBalancer not ready after waiting"
+#         exit 1
 
-# =========================
-  # Stage 4️⃣: Continuous Deployment (CD)
-  # =========================
-  cd:
-    name: Argo CD and SonarQube
-    runs-on: ubuntu-latest
-    needs: [infra, deploy]
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GIT_TOKEN }}
+# # =========================
+#   # Stage 4️⃣: Continuous Deployment (CD)
+#   # =========================
+   cd:
+     name: Argo CD and SonarQube
+     runs-on: ubuntu-latest
+     needs: [infra, deploy]
+     steps:
+#       - name: Checkout repo
+#         uses: actions/checkout@v4
+#         with:
+#           token: ${{ secrets.GIT_TOKEN }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
+#       - name: Update kubeconfig
+#         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
 
-      - name: Apply Argo CD Application
-        run: |
-          kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
+#       - name: Apply Argo CD Application
+#         run: |
+#           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
 
       # Stage SonarQube Deploy & Scan
       - name: Deploy SonarQube via Helm
@@ -336,70 +336,3 @@ jobs:
             --namespace datadog --dry-run=client -o yaml | kubectl apply -f -
 
           envsubst < k8s/datadog-agent.yaml | kubectl apply -n datadog -f -
-
-
-
-
-# ##################
-#   SonarQube:
-#     name: SonarQube
-#     runs-on: ubuntu-latest
-#     needs: [infra, deploy]
-#     steps:
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ env.AWS_REGION }}
-
-#       - name: Update kubeconfig
-#         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
-
-#       - name: Deploy SonarQube via Helm
-#         run: |
-#           helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
-#           helm repo update
-#           helm upgrade --install sonarqube sonarqube/sonarqube \
-#             --namespace sonarqube --create-namespace \
-#             --set community.enabled=true \
-#             --set persistence.enabled=false \
-#             --set postgresql.persistence.enabled=false \
-#             --set monitoringPasscode=mysecurepasscode123 \
-#             --set service.type=LoadBalancer \
-#             --set resources.requests.memory=2Gi \
-#             --set resources.requests.cpu=1000m 
-#             
-
-#       # --- [ خطوة جلب الـ URL ] ---
-#       - name: Wait for SonarQube URL
-#         run: |
-#           echo "Waiting for LoadBalancer DNS..."
-#           for i in {1..50}; do
-#             SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
-#             if [ -n "$SONAR_HOST" ]; then
-#               echo "SONAR_URL=http://$SONAR_HOST:9000" >> $GITHUB_ENV
-#               echo "SonarQube URL is: http://$SONAR_HOST:9000"
-#               break
-#             fi
-#             sleep 15
-#           done
-
-#       # --- [ خطوة الـ Scan الاحترافية ] ---
-#       # دي هتشتغل مع Nginx دلوقتي ولو قلبتي Java هتفضل شغالة
-#       - name: SonarQube Scan
-#         uses: sonarsource/sonarqube-scan-action@master
-#         env:
-#           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-#           SONAR_HOST_URL: ${{ env.SONAR_URL }}
-#         with:
-#           args: >
-#             -Dsonar.projectKey=hello-app
-#             -Dsonar.projectName=hello-app
-#             -Dsonar.sources=.
-#             -Dsonar.qualitygate.wait=true
-
-#       # --- [ خطوة التأكد من نجاح الفحص ] ---
-#       - name: Check Quality Gate
-#         run: |
-#           echo "SonarQube analysis is finished and project created automatically!"
