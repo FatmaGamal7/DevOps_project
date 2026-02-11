@@ -281,8 +281,10 @@ jobs:
             --set persistence.storageClass=ebs-sc \
             --set postgresql.persistence.enabled=true \
             --set postgresql.persistence.storageClass=ebs-sc \
+            --set monitoringPasscode=mysecurepasscode123 \
             --set service.type=LoadBalancer \
-            --wait --timeout 3m
+            --wait \
+            --timeout 5m
             
           kubectl get pods -n sonarqube
             
