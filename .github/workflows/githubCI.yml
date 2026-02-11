@@ -277,7 +277,7 @@ jobs:
             --set postgresql.persistence.enabled=false \
             --set monitoringPasscode=mysecurepasscode123 \
             --set service.type=LoadBalancer \
-            --wait
+            
 
       - name: Wait for SonarQube LoadBalancer
         run: |
