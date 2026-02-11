@@ -268,6 +268,7 @@ jobs:
       # Stage SonarQube Deploy & Scan
       - name: Deploy SonarQube via Helm
         run: |
+          kubectl apply -f k8s/ebs-storage-class.yaml
           helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
           helm repo update
           helm upgrade --install sonarqube sonarqube/sonarqube \
