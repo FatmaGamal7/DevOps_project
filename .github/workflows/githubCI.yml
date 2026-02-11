@@ -276,7 +276,9 @@ jobs:
             --set persistence.enabled=false \
             --set postgresql.persistence.enabled=false \
             --set monitoringPasscode=mysecurepasscode123 \
-            --set service.type=LoadBalancer \
+            --set service.type=LoadBalancer 
+
+          kubectl get pods -n sonarqube
             
 
       - name: Wait for SonarQube LoadBalancer
