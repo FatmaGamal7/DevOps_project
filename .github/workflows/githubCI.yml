@@ -265,21 +265,19 @@ jobs:
         run: |
           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
 
-        # =========================
-        # Stage 5️⃣: SonarQube Deploy & Scan
-        # =========================
+      # Stage SonarQube Deploy & Scan
       - name: Deploy SonarQube via Helm
-            run: |
-              helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
-              helm repo update
-              helm upgrade --install sonarqube sonarqube/sonarqube \
-                -n sonarqube --create-namespace \
-                --set persistence.enabled=false \
-                --set postgresql.persistence.enabled=false \
-                --wait
+        run: |
+          helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+          helm repo update
+          helm upgrade --install sonarqube sonarqube/sonarqube \
+            -n sonarqube --create-namespace \
+            --set persistence.enabled=false \
+            --set postgresql.persistence.enabled=false \
+            --wait
 
-          - name: Get SonarQube URL
-            run: |
-              echo "Waiting for SonarQube URL..."
-              SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-              echo "SONAR_URL=http://$SONAR_HOST:9000" >> $GITHUB_ENV
+      - name: Get SonarQube URL
+        run: |
+          echo "Waiting for SonarQube URL..."
+          SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "SONAR_URL=http://$SONAR_HOST:9000" >> $GITHUB_ENV
