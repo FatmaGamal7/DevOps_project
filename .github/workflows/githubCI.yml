@@ -265,7 +265,15 @@ jobs:
         run: |
           kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
 
-      # Stage SonarQube Deploy & Scan
+
+
+##########
+
+  SonarQube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    needs: [infra, deploy]
+    steps:
       - name: Deploy SonarQube via Helm
         run: |
           helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
@@ -276,22 +284,40 @@ jobs:
             --set persistence.enabled=false \
             --set postgresql.persistence.enabled=false \
             --set monitoringPasscode=mysecurepasscode123 \
-            --set service.type=LoadBalancer 
-            
-          sleep 60s
-          kubectl get pods -n sonarqube
-            
+            --set service.type=LoadBalancer \
+            --set resources.requests.memory=2Gi \
+            --set resources.requests.cpu=1000m \
+            --wait --timeout 15m
 
-      - name: Wait for SonarQube LoadBalancer
+      # --- [ خطوة جلب الـ URL ] ---
+      - name: Wait for SonarQube URL
         run: |
-          echo "Waiting for SonarQube LoadBalancer..."
+          echo "Waiting for LoadBalancer DNS..."
           for i in {1..50}; do
             SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
             if [ -n "$SONAR_HOST" ]; then
               echo "SONAR_URL=http://$SONAR_HOST:9000" >> $GITHUB_ENV
-              echo "SonarQube is live at: http://$SONAR_HOST:9000"
+              echo "SonarQube URL is: http://$SONAR_HOST:9000"
               break
             fi
-            echo "Still waiting for LoadBalancer DNS..."
             sleep 15
           done
+
+      # --- [ خطوة الـ Scan الاحترافية ] ---
+      # دي هتشتغل مع Nginx دلوقتي ولو قلبتي Java هتفضل شغالة
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=hello-app
+            -Dsonar.projectName=hello-app
+            -Dsonar.sources=.
+            -Dsonar.qualitygate.wait=true
+
+      # --- [ خطوة التأكد من نجاح الفحص ] ---
+      - name: Check Quality Gate
+        run: |
+          echo "SonarQube analysis is finished and project created automatically!"
