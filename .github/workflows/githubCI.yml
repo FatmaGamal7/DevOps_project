@@ -276,9 +276,10 @@ jobs:
             --set persistence.enabled=false \
             --set postgresql.persistence.enabled=false \
             --set monitoringPasscode=mysecurepasscode123 \
-            --set service.type=LoadBalancer 
+            --set service.type=LoadBalancer \
+            --atomic
             
-          sleep 30s
+          sleep 60s
           kubectl get pods -n sonarqube
             
 
