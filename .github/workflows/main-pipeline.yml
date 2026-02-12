@@ -1,0 +1,67 @@
+name: Full DevOps Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment
+        required: true
+        default: prod
+        type: choice
+        options:
+          - prod
+          - nonprod
+      action:
+        description: Terraform Action
+        required: true
+        default: apply
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+jobs:
+
+  infra:
+    uses: ./.github/workflows/infra.yml
+    with:
+      env: ${{ inputs.env }}
+      action: ${{ inputs.action }}
+    secrets: inherit
+
+  platform:
+    needs: infra
+    if: inputs.action == 'apply'
+    uses: ./.github/workflows/platform.yml
+    with:
+      env: ${{ inputs.env }}
+      cluster_name: ${{ needs.infra.outputs.cluster_name }}
+    secrets: inherit
+
+  ci:
+    needs: infra
+    if: inputs.action == 'apply'
+    uses: ./.github/workflows/ci.yml
+    with:
+      env: ${{ inputs.env }}
+      ecr_repo: ${{ needs.infra.outputs.ecr_repo }}
+    secrets: inherit
+
+  cd:
+    needs: [platform, ci]
+    if: inputs.action == 'apply'
+    uses: ./.github/workflows/cd.yml
+    with:
+      env: ${{ inputs.env }}
+      cluster_name: ${{ needs.infra.outputs.cluster_name }}
+      image_tag: ${{ needs.ci.outputs.image_tag }}
+    secrets: inherit
+
+  monitoring:
+    needs: platform
+    if: inputs.action == 'apply'
+    uses: ./.github/workflows/monitoring.yml
+    with:
+      cluster_name: ${{ needs.infra.outputs.cluster_name }}
+    secrets: inherit

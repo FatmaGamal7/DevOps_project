@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+      ecr_repo:
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  APP_DIR: ./hello_app
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate Image Tag
+        id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login --username AWS \
+            --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - name: Build Image
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          docker build -t ${{ inputs.ecr_repo }}:${{ steps.meta.outputs.tag }} .
+
+      - name: Push Image
+        run: |
+          docker push ${{ inputs.ecr_repo }}:${{ steps.meta.outputs.tag }}
+
+      - name: Sonar Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

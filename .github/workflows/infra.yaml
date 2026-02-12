@@ -1,0 +1,72 @@
+name: Infra
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  TERRAFORM_DIR: ./terraform
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+
+    outputs:
+      cluster_name: ${{ steps.eks.outputs.cluster_name }}
+      ecr_repo: ${{ steps.ecr.outputs.ecr_repo }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.7
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform init -input=false
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Plan
+        if: inputs.action == 'plan'
+        run: terraform plan -var="environment=${{ inputs.env }}"
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Apply
+        if: inputs.action == 'apply'
+        run: terraform apply -auto-approve -var="environment=${{ inputs.env }}"
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -auto-approve -var="environment=${{ inputs.env }}"
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Get ECR
+        id: ecr
+        if: inputs.action == 'apply'
+        run: |
+          ECR=$(terraform output -raw repository_url)
+          echo "ecr_repo=$ECR" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Get EKS
+        id: eks
+        if: inputs.action == 'apply'
+        run: |
+          CLUSTER=$(terraform output -raw eks_cluster_name)
+          echo "cluster_name=$CLUSTER" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.TERRAFORM_DIR }}
