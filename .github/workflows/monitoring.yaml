@@ -6,6 +6,10 @@ on:
       env:
         required: true
         type: string
+      cluster_name:
+        required: true
+        type: string
+
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true

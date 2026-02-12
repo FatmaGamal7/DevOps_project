@@ -1,5 +1,6 @@
 name: CI
 
+
 on:
   workflow_call:
     inputs:
@@ -9,6 +10,12 @@ on:
       ecr_repo:
         required: true
         type: string
+
+    outputs:
+      image_tag:
+        description: Built image tag
+        value: ${{ jobs.ci.outputs.image_tag }}
+
 
 env:
   AWS_REGION: us-east-1
