@@ -24,7 +24,7 @@ on:
 jobs:
 
   infra:
-    uses: ./.github/workflows/infra.yml
+    uses: ./.github/workflows/infra.yaml
     with:
       env: ${{ inputs.env }}
       action: ${{ inputs.action }}
@@ -33,7 +33,7 @@ jobs:
   platform:
     needs: infra
     if: inputs.action == 'apply'
-    uses: ./.github/workflows/platform.yml
+    uses: ./.github/workflows/platform.yaml
     with:
       env: ${{ inputs.env }}
       cluster_name: ${{ needs.infra.outputs.cluster_name }}
@@ -42,7 +42,7 @@ jobs:
   ci:
     needs: infra
     if: inputs.action == 'apply'
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/CI.yaml
     with:
       env: ${{ inputs.env }}
       ecr_repo: ${{ needs.infra.outputs.ecr_repo }}
@@ -51,7 +51,7 @@ jobs:
   cd:
     needs: [platform, ci]
     if: inputs.action == 'apply'
-    uses: ./.github/workflows/cd.yml
+    uses: ./.github/workflows/CD.yaml
     with:
       env: ${{ inputs.env }}
       cluster_name: ${{ needs.infra.outputs.cluster_name }}
@@ -61,7 +61,7 @@ jobs:
   monitoring:
     needs: platform
     if: inputs.action == 'apply'
-    uses: ./.github/workflows/monitoring.yml
+    uses: ./.github/workflows/monitoring.yaml
     with:
       cluster_name: ${{ needs.infra.outputs.cluster_name }}
     secrets: inherit
