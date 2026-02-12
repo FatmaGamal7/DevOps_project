@@ -13,6 +13,9 @@ on:
 env:
   AWS_REGION: us-east-1
   TERRAFORM_DIR: ./terraform
+  HELM_CHART_DIR: ./helm
+  APP_DIR: ./hello_app
+  K8S_DIR: ./k8s
 
 jobs:
   # ===============================
@@ -50,17 +53,17 @@ jobs:
       - name: Terraform Plan
         if: inputs.action == 'plan'
         working-directory: ${{ env.TERRAFORM_DIR }}
-        run: terraform plan -var="environment=${{ inputs.env }}"
+        run: terraform plan
 
       - name: Terraform Apply
         if: inputs.action == 'apply'
         working-directory: ${{ env.TERRAFORM_DIR }}
-        run: terraform apply -auto-approve -var="environment=${{ inputs.env }}"
+        run: terraform apply -auto-approve
 
       - name: Terraform Destroy
         if: inputs.action == 'destroy'
         working-directory: ${{ env.TERRAFORM_DIR }}
-        run: terraform destroy -auto-approve -var="environment=${{ inputs.env }}"
+        run: terraform destroy -auto-approve
 
       # =========================
       # Outputs (only on apply)
