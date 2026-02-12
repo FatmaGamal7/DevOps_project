@@ -434,6 +434,16 @@ jobs:
     - name: Update kubeconfig
       run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ needs.infra.outputs.EKS_CLUSTER }}
 
+
+    - name: Remove AWS LB Controller Webhook
+      run: |
+        set -euo pipefail
+        kubectl -n kube-system delete service aws-load-balancer-webhook-service --ignore-not-found
+        kubectl -n kube-system delete secret aws-load-balancer-webhook-tls --ignore-not-found
+        kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found
+        kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found
+
+
     # -----------------------------
     # STEP 1: Associate OIDC Provider
     # -----------------------------
