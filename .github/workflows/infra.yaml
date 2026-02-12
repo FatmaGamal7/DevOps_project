@@ -15,58 +15,68 @@ env:
   TERRAFORM_DIR: ./terraform
 
 jobs:
+  # ===============================
+  # Stage 1️⃣: Infra (Terraform)
+  # ===============================
   infra:
+    name: Provision Infrastructure
     runs-on: ubuntu-latest
 
     outputs:
-      cluster_name: ${{ steps.eks.outputs.cluster_name }}
-      ecr_repo: ${{ steps.ecr.outputs.ecr_repo }}
+      cluster_name: ${{ steps.set-eks-cluster.outputs.cluster_name }}
+      ecr_repo: ${{ steps.set-ecr.outputs.ecr_repo }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.7
           terraform_wrapper: false
 
-      - name: Init
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform init -input=false
-        working-directory: ${{ env.TERRAFORM_DIR }}
 
-      - name: Plan
+      - name: Terraform Plan
         if: inputs.action == 'plan'
+        working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform plan -var="environment=${{ inputs.env }}"
-        working-directory: ${{ env.TERRAFORM_DIR }}
 
-      - name: Apply
+      - name: Terraform Apply
         if: inputs.action == 'apply'
+        working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform apply -auto-approve -var="environment=${{ inputs.env }}"
-        working-directory: ${{ env.TERRAFORM_DIR }}
 
-      - name: Destroy
+      - name: Terraform Destroy
         if: inputs.action == 'destroy'
+        working-directory: ${{ env.TERRAFORM_DIR }}
         run: terraform destroy -auto-approve -var="environment=${{ inputs.env }}"
-        working-directory: ${{ env.TERRAFORM_DIR }}
 
-      - name: Get ECR
-        id: ecr
+      # =========================
+      # Outputs (only on apply)
+      # =========================
+      - name: Set ECR repo URL
+        id: set-ecr
         if: inputs.action == 'apply'
-        run: |
-          ECR=$(terraform output -raw repository_url)
-          echo "ecr_repo=$ECR" >> $GITHUB_OUTPUT
         working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          ECR_REPO=$(terraform output -raw repository_url | tr -d '\n')
+          echo "ecr_repo=$ECR_REPO" >> $GITHUB_OUTPUT
 
-      - name: Get EKS
-        id: eks
+      - name: Set EKS Cluster name
+        id: set-eks-cluster
         if: inputs.action == 'apply'
-        run: |
-          CLUSTER=$(terraform output -raw eks_cluster_name)
-          echo "cluster_name=$CLUSTER" >> $GITHUB_OUTPUT
         working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name | tr -d '\n')
+          echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
