@@ -1,0 +1,37 @@
+name: Monitoring
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      DATADOG_API_KEY:
+        required: true
+
+jobs:
+  monitoring:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install Datadog
+        run: |
+          helm repo add datadog https://helm.datadoghq.com
+          helm repo update
+          helm upgrade --install datadog datadog/datadog \
+            --namespace datadog --create-namespace \
+            --set datadog.apiKey=${{ secrets.DATADOG_API_KEY }}
