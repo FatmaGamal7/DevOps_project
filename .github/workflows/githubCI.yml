@@ -303,21 +303,21 @@ jobs:
             sleep 15
           done
 
-      # - name: SonarQube Scan
-      #   uses: sonarsource/sonarqube-scan-action@master
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-      #     SONAR_HOST_URL: ${{ env.SONAR_URL }}
-      #   with:
-      #     args: >
-      #       -Dsonar.projectKey=hello-app
-      #       -Dsonar.projectName=hello-app
-      #       -Dsonar.sources=.
-      #       -Dsonar.qualitygate.wait=true
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=hello-app
+            -Dsonar.projectName=hello-app
+            -Dsonar.sources=.
+            -Dsonar.qualitygate.wait=true
 
-      # - name: Check Quality Gate
-      #   run: |
-      #     echo "SonarQube analysis is finished and project created automatically!"
+      - name: Check Quality Gate
+        run: |
+          echo "SonarQube analysis is finished and project created automatically!"
 
       ########
 

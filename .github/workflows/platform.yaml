@@ -1,4 +1,4 @@
-name: Platform
+name: Platform Tools
 
 on:
   workflow_call:
@@ -10,49 +10,79 @@ on:
         required: true
         type: string
 
-
 env:
   AWS_REGION: us-east-1
+  HELM_CHART_DIR: ./helm
+  K8S_DIR: ./k8s
 
 jobs:
-  platform:
+  platform-tools:
+    name: Install Platform Tools
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - run: |
-          curl -LO https://storage.googleapis.com/kubernetes-release/release/stable.txt
-          K8S_VERSION=$(cat stable.txt)
+      # Install kubectl
+      - name: Install kubectl
+        run: |
+          K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
           curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
 
-      - run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name ${{ inputs.cluster_name }}
-
-      - name: Install ArgoCD
+      # Install Helm
+      - name: Install Helm
         run: |
-          helm repo add argo https://argoproj.github.io/argo-helm
-          helm repo update
-          helm upgrade --install argocd argo/argo-cd \
-            --namespace argocd \
-            --create-namespace
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-      - name: Install SonarQube
+      # Update kubeconfig
+      - name: Update kubeconfig
         run: |
-          helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
-          helm repo update
-          helm upgrade --install sonarqube sonarqube/sonarqube \
-            --namespace sonarqube \
-            --create-namespace \
-            --set service.type=LoadBalancer
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ inputs.cluster_name }}
+
+      # Install ingress-nginx controller
+      - name: Install ingress-nginx controller
+        run: |
+          if kubectl get ns ingress-nginx >/dev/null 2>&1; then
+            echo "ingress-nginx already exists"
+          else
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+            helm repo update
+            helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+              --namespace ingress-nginx --create-namespace
+            kubectl rollout status deployment/ingress-nginx-controller \
+              -n ingress-nginx --timeout=120s
+          fi
+
+      # Install Argo CD
+      - name: Install Argo CD
+        run: |
+          set -e
+          if kubectl get ns argocd >/dev/null 2>&1; then
+            echo "Argo CD already installed"
+          else
+            helm repo add argo https://argoproj.github.io/argo-helm
+            helm repo update
+            helm upgrade --install argocd argo/argo-cd \
+              --namespace argocd \
+              --create-namespace \
+              --set server.service.type=ClusterIP \
+              --set server.ingress.enabled=true \
+              --set server.ingress.ingressClassName=nginx
+          fi
+
+      # Verify
+      - name: Verify platform tools
+        run: |
+          kubectl get pods -n ingress-nginx
+          kubectl get pods -n argocd
+          kubectl get svc -n argocd

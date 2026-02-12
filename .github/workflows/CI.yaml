@@ -1,6 +1,5 @@
 name: CI
 
-
 on:
   workflow_call:
     inputs:
@@ -10,54 +9,105 @@ on:
       ecr_repo:
         required: true
         type: string
-
-    outputs:
-      image_tag:
-        description: Built image tag
-        value: ${{ jobs.ci.outputs.image_tag }}
-
-
-env:
-  AWS_REGION: us-east-1
-  APP_DIR: ./hello_app
+      cluster_name:
+        required: true
+        type: string
 
 jobs:
-  ci:
+  ci-build-deploy:
+    name: CI Build, Deploy & SonarQube
     runs-on: ubuntu-latest
-
     outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
-
+      image_tag: latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: us-east-1
 
-      - name: Generate Image Tag
-        id: meta
-        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+      - name: Install kubectl
+        run: |
+          K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          aws eks update-kubeconfig --region us-east-1 --name ${{ inputs.cluster_name }}
 
+      - name: Install Helm
+        run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # =========================
+      # Docker Build & Push
+      # =========================
       - name: Login to ECR
         run: |
-          aws ecr get-login-password --region $AWS_REGION \
-          | docker login --username AWS \
-            --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+          aws ecr get-login-password --region us-east-1 \
+          | docker login --username AWS --password-stdin ${{ inputs.ecr_repo }}
 
-      - name: Build Image
-        working-directory: ${{ env.APP_DIR }}
+      - name: Build Docker Image
+        run: docker build -t ${{ inputs.ecr_repo }}:latest ./hello_app
+
+      - name: Push Docker Image
+        run: docker push ${{ inputs.ecr_repo }}:latest
+
+      # =========================
+      # Helm Deploy App
+      # =========================
+      - name: Deploy Helm Chart
         run: |
-          docker build -t ${{ inputs.ecr_repo }}:${{ steps.meta.outputs.tag }} .
+          helm upgrade --install hello-app ./helm \
+            --set image.repository=${{ inputs.ecr_repo }} \
+            --set image.tag=latest
 
-      - name: Push Image
+      # =========================
+      # SonarQube Deploy
+      # =========================
+      - name: Deploy SonarQube via Helm
         run: |
-          docker push ${{ inputs.ecr_repo }}:${{ steps.meta.outputs.tag }}
+          kubectl apply -f k8s/ebs-storage-class.yaml
+          helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+          helm repo update
+          helm upgrade --install sonarqube sonarqube/sonarqube \
+            --namespace sonarqube --create-namespace \
+            --set postgresql.enabled=true \
+            --set community.enabled=true \
+            --set persistence.enabled=true \
+            --set persistence.storageClass=ebs-sc \
+            --set postgresql.persistence.enabled=true \
+            --set postgresql.persistence.storageClass=ebs-sc \
+            --set monitoringPasscode=mysecurepasscode123 \
+            --set service.type=LoadBalancer \
+            --wait --timeout 5m
 
-      - name: Sonar Scan
+      - name: Wait for SonarQube LoadBalancer
+        run: |
+          echo "Waiting for SonarQube LoadBalancer..."
+          for i in {1..50}; do
+            SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            if [ -n "$SONAR_HOST" ]; then
+              echo "SONAR_URL=http://$SONAR_HOST:9000" >> $GITHUB_ENV
+              echo "SonarQube is live at: http://$SONAR_HOST:9000"
+              break
+            fi
+            sleep 15
+          done
+
+      # =========================
+      # Sonar Scan
+      # =========================
+      - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: ${{ env.SONAR_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=hello-app
+            -Dsonar.projectName=hello-app
+            -Dsonar.sources=.
+            -Dsonar.qualitygate.wait=true
