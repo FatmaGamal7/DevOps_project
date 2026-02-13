@@ -36,22 +36,22 @@ jobs:
       eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
     secrets: inherit
 
-  # ci:
-  #   if: github.event.inputs.action == 'apply'
-  #   needs: [infra, platform]
-  #   uses: ./.github/workflows/CI.yaml
-  #   with:
-  #     eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
-  #     ecr_repo: ${{ needs.infra.outputs.ECR_REPO }}
-  #   secrets: inherit
+  ci:
+    if: github.event.inputs.action == 'apply'
+    needs: [infra, platform]
+    uses: ./.github/workflows/CI.yaml
+    with:
+      eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
+      ecr_repo: ${{ needs.infra.outputs.ECR_REPO }}
+    secrets: inherit
 
-  # cd:
-  #   if: github.event.inputs.action == 'apply'
-  #   needs: [infra, ci]
-  #   uses: ./.github/workflows/CD.yaml
-  #   with:
-  #     eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
-  #   secrets: inherit
+  cd:
+    if: github.event.inputs.action == 'apply'
+    needs: [infra, ci]
+    uses: ./.github/workflows/CD.yaml
+    with:
+      eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
+    secrets: inherit
 
   monitoring:
     if: github.event.inputs.action == 'apply'
