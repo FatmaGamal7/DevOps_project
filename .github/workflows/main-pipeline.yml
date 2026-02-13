@@ -1,20 +1,20 @@
-name: Full DevOps Pipeline
+name: CI/CD Pipeline Orchestrator
 
 on:
   workflow_dispatch:
     inputs:
       env:
-        description: Environment
+        description: 'Environment'
         required: true
-        default: prod
+        default: 'prod'
         type: choice
         options:
           - prod
           - nonprod
       action:
-        description: Terraform Action
+        description: 'Terraform Action'
         required: true
-        default: apply
+        default: 'plan'
         type: choice
         options:
           - plan
@@ -22,46 +22,41 @@ on:
           - destroy
 
 jobs:
-
   infra:
     uses: ./.github/workflows/infra.yaml
     with:
-      env: ${{ inputs.env }}
-      action: ${{ inputs.action }}
+      terraform_action: ${{ github.event.inputs.action }}
     secrets: inherit
 
   platform:
+    if: github.event.inputs.action == 'apply'
     needs: infra
-    if: inputs.action == 'apply'
     uses: ./.github/workflows/platform.yaml
     with:
-      env: ${{ inputs.env }}
-      cluster_name: ${{ needs.infra.outputs.cluster_name }}
+      eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
     secrets: inherit
 
   ci:
-    needs: infra
-    if: inputs.action == 'apply'
+    if: github.event.inputs.action == 'apply'
+    needs: [infra, platform]
     uses: ./.github/workflows/CI.yaml
     with:
-      env: ${{ inputs.env }}
-      ecr_repo: ${{ needs.infra.outputs.ecr_repo }}
+      eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
+      ecr_repo: ${{ needs.infra.outputs.ECR_REPO }}
     secrets: inherit
 
   cd:
-    needs: [platform, ci]
-    if: inputs.action == 'apply'
+    if: github.event.inputs.action == 'apply'
+    needs: [infra, ci]
     uses: ./.github/workflows/CD.yaml
     with:
-      env: ${{ inputs.env }}
-      cluster_name: ${{ needs.infra.outputs.cluster_name }}
-      image_tag: ${{ needs.ci.outputs.image_tag }}
+      eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
     secrets: inherit
 
   monitoring:
-    needs: platform
-    if: inputs.action == 'apply'
+    if: github.event.inputs.action == 'apply'
+    needs: [infra, cd]
     uses: ./.github/workflows/monitoring.yaml
     with:
-      cluster_name: ${{ needs.infra.outputs.cluster_name }}
+      eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
     secrets: inherit

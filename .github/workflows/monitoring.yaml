@@ -1,39 +1,26 @@
 name: Monitoring
-
 on:
   workflow_call:
     inputs:
-      env:
-        required: true
-        type: string
-      cluster_name:
+      eks_cluster:
         required: true
         type: string
 
 jobs:
-  monitoring:
+  datadog-setup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Install Helm
-        run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
       - name: Install Datadog
-        env:
-          DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
         run: |
+          aws eks update-kubeconfig --region us-east-1 --name ${{ inputs.eks_cluster }}
           helm repo add datadog https://helm.datadoghq.com
           helm repo update
-          helm upgrade --install datadog-operator datadog/datadog-operator \
-            --namespace datadog --create-namespace --wait
-          kubectl create secret generic datadog-secret \
-            --from-literal api-key=$DD_API_KEY --namespace datadog --dry-run=client -o yaml | kubectl apply -f -
-          envsubst < k8s/datadog-agent.yaml | kubectl apply -n datadog -f -
+          helm upgrade --install datadog-operator datadog/datadog-operator --namespace datadog --create-namespace
+          kubectl create secret generic datadog-secret --from-literal api-key=${{ secrets.DATADOG_API_KEY }} --namespace datadog --dry-run=client -o yaml | kubectl apply -f -
