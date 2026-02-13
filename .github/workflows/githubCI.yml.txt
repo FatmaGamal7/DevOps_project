@@ -222,7 +222,7 @@ jobs:
           --for=condition=available deployment/ingress-nginx-controller \
           --timeout=180s
 
-    - name: Wait and Get Application URL
+    - name: Wait and Get Application URL for app
       run: |
         echo "Waiting for Application LoadBalancer..."
         for i in {1..30}; do

@@ -10,30 +10,103 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  tools:
+  platform-tools:
+    name: Install Platform Tools
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+    - name: Checkout repo
+      uses: actions/checkout@v4
 
-      - name: Setup Tools
-        run: |
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ inputs.eks_cluster }}
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
 
-      - name: Ingress Nginx
-        run: |
+    # 1. Install kubectl & Helm
+    - name: Install kubectl & Helm
+      run: |
+        K8S_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt | tr -d '\n')
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    # 2. Update kubeconfig
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ inputs.eks_cluster }}
+
+    # 3. Install Ingress-Nginx
+    - name: Install ingress-nginx controller
+      run: |
+        if kubectl get ns ingress-nginx >/dev/null 2>&1; then
+          echo "ingress-nginx already exists"
+        else
           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
           helm repo update
-          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx --create-namespace
+          kubectl rollout status deployment/ingress-nginx-controller \
+            -n ingress-nginx --timeout=120s
+        fi
 
-      - name: Argo CD
-        run: |
+    # 4. Install Argo CD
+    - name: Install Argo CD
+      run: |
+        if kubectl get ns argocd >/dev/null 2>&1; then
+          echo "Argo CD already installed"
+        else
           helm repo add argo https://argoproj.github.io/argo-helm
           helm repo update
-          helm upgrade --install argocd argo/argo-cd --namespace argocd --create-namespace \
-            --set server.ingress.enabled=true --set server.ingress.ingressClassName=nginx
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace argocd --create-namespace \
+            --set server.service.type=ClusterIP \
+            --set server.ingress.enabled=true \
+            --set server.ingress.ingressClassName=nginx
+        fi
+
+    # 5. Install SonarQube 
+    - name: Deploy SonarQube via Helm
+      run: |
+        # Apply Storage Class for EBS
+        kubectl apply -f k8s/ebs-storage-class.yaml
+        
+        helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+        helm repo update
+        
+        helm upgrade --install sonarqube sonarqube/sonarqube \
+          --namespace sonarqube --create-namespace \
+          --set postgresql.enabled=true \
+          --set community.enabled=true \
+          --set persistence.enabled=true \
+          --set persistence.storageClass=ebs-sc \
+          --set postgresql.persistence.enabled=true \
+          --set postgresql.persistence.storageClass=ebs-sc \
+          --set monitoringPasscode=mysecurepasscode123 \
+          --set service.type=LoadBalancer \
+          --wait \
+          --timeout 10m
+          
+        kubectl get pods -n sonarqube
+
+    - name: Wait for SonarQube LoadBalancer
+      run: |
+        echo "Waiting for SonarQube LoadBalancer..."
+        for i in {1..50}; do
+          SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          if [ -n "$SONAR_HOST" ]; then
+            echo "SonarQube is live at: http://$SONAR_HOST:9000"
+            exit 0
+          fi
+          echo "Still waiting for LoadBalancer DNS..."
+          sleep 15
+        done
+        exit 1
+
+    # 6. Verify All Tools
+    - name: Verify platform tools
+      run: |
+        kubectl get pods -A | grep -E 'ingress-nginx|argocd|sonarqube'
