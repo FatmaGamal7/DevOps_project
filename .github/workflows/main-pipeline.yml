@@ -55,7 +55,7 @@ jobs:
 
   monitoring:
     if: github.event.inputs.action == 'apply'
-    needs: [infra, cd]
+    needs: infra
     uses: ./.github/workflows/monitoring.yaml
     with:
       eks_cluster: ${{ needs.infra.outputs.EKS_CLUSTER }}
