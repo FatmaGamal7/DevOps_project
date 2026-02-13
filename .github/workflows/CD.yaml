@@ -6,20 +6,70 @@ on:
         required: true
         type: string
 
+env:
+  AWS_REGION: us-east-1
+
 jobs:
   quality-gate:
+    name: Argo CD & SonarQube
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: ArgoCD App & SonarQube
+      - name: Setup Tools & Kubeconfig
         run: |
-          aws eks update-kubeconfig --region us-east-1 --name ${{ inputs.eks_cluster }}
-          kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
-          # SonarQube Helm Install (as per your original script)
-          helm upgrade --install sonarqube sonarqube/sonarqube --namespace sonarqube --create-namespace --wait
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ inputs.eks_cluster }}
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Apply ArgoCD App
+        run: kubectl apply -f k8s/hello-app-argocd.yaml -n argocd
+
+      - name: Deploy SonarQube via Helm
+        run: |
+          kubectl apply -f k8s/ebs-storage-class.yaml
+          helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+          helm repo update
+          helm upgrade --install sonarqube sonarqube/sonarqube \
+            --namespace sonarqube --create-namespace \
+            --set postgresql.enabled=true \
+            --set community.enabled=true \
+            --set persistence.storageClass=ebs-sc \
+            --set service.type=LoadBalancer --wait --timeout 10m
+
+      # --- الجزء اللي كان ناقص: استخراج الـ URL ---
+      - name: Get SonarQube URL
+        id: sonar-url
+        run: |
+          echo "Waiting for SonarQube LoadBalancer DNS..."
+          # محاولة الحصول على الـ Hostname لمدة دقيقتين
+          for i in {1..20}; do
+            SONAR_HOST=$(kubectl get svc sonarqube-sonarqube -n sonarqube -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -z "$SONAR_HOST" ]; then
+              echo "Still waiting for DNS..."
+              sleep 10
+            else
+              echo "SONAR_URL=http://$SONAR_HOST:9000" >> $GITHUB_ENV
+              echo "URL found: http://$SONAR_HOST:9000"
+              exit 0
+            fi
+          done
+          echo "Could not find LoadBalancer DNS"
+          exit 1
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_URL }} 
+        with:
+          args: >
+            -Dsonar.projectKey=hello-app
+            -Dsonar.projectName=hello-app
+            -Dsonar.sources=.
+            -Dsonar.qualitygate.wait=true
